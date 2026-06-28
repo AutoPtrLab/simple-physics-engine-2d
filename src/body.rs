@@ -5,8 +5,7 @@ use crate::math::Vec2;
 pub enum Shape {
     Circle { rad: f32 },
     Rectangle { width: f32, height: f32 }, //the coords of the rect are in the center of gravity
-    Line { p: Vec2 },                      //these are the point in local coords to the global position of the body
-                                           //the n is also precalculated
+    Line { p: Vec2 },                      //this is the second point of the line ,being the pos the first one
 }
 ///Representation of every rigid particle
 #[derive(Debug)]

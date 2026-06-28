@@ -17,19 +17,18 @@ pub fn update_collisions(w: &mut world::World) {
 fn check_collision(a: &mut Body, b: &mut Body) {
     let info = match (a.shape, b.shape) {
         // --- CIRCLE VS ALL ---
-        (Shape::Circle { rad: rad_a }, Shape::Circle { rad: rad_b }) => {
-            // Your Circle vs Circle function
+        (Shape::Circle { rad: rad_a }, Shape::Circle { rad: rad_b }) =>
+        // Your Circle vs Circle function
+        {
             collision_circle_circle(a.pos, rad_a, b.pos, rad_b)
         }
+
         (Shape::Circle { rad }, Shape::Rectangle { width, height }) => {
             collision_circle_rect(a.pos, rad, b.pos, width, height)
         }
-        (Shape::Circle { rad }, Shape::Line { p }) => {
-            // Your Circle vs Line function
-            todo!();
-        }
 
-        // --- RECTANGLE VS ALL ---
+        (Shape::Circle { rad }, Shape::Line { p }) => collision_circle_line(a.pos, rad, b.pos, p),
+
         (
             Shape::Rectangle {
                 width: w_a,
@@ -62,8 +61,10 @@ fn check_collision(a: &mut Body, b: &mut Body) {
             todo!()
         }
         (Shape::Line { p }, Shape::Circle { rad }) => {
-            // Your Line vs Circle function (you can call the inverse)
-            todo!()
+            collision_circle_line(b.pos, rad, a.pos, p).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
         }
         (Shape::Line { p }, Shape::Rectangle { width, height }) => {
             // Your Line vs Rectangle function (you can call the inverse)
@@ -182,4 +183,37 @@ fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h
             depth: depth_y,
         })
     }
+}
+fn collision_rect_line(a_pos: Vec2, w_a: f32) {}
+fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
+    //maybe sq is more efficient
+    let line_vec = p2_pos - p1_pos;
+
+    let p1_circ_vec = circle_pos - p1_pos;
+
+    let p1_circ_len = p1_circ_vec.len();
+    let proyection_lenght = (p1_circ_vec.dot(line_vec) / line_vec.len());
+    if proyection_lenght.abs() > line_vec.len() {
+        //so the proyection is the lenght no neg values
+        // if the proyection itself is bigger than the line it doesnt collide
+        return None;
+    }
+    //Pitagoras
+    let dist = ((p1_circ_len * p1_circ_len) - (proyection_lenght * proyection_lenght)).sqrt();
+
+    //if the dist is bigger than the radius they are not colliding
+    if dist > rad {
+        //println!("{}", dist);
+        return None;
+    }
+    //println!("Consegiodo:{}", dist);
+    let proyection_vec = proyection_lenght * line_vec.normalize();
+    let nearest_point = p1_pos + proyection_vec;
+    let collision_vec = circle_pos - nearest_point; //the vector bewtween the point of collision and the circle
+
+    println!("{}", collision_vec.normalize());
+    Some(CollisionInfo {
+        n: collision_vec.normalize(),
+        depth: rad - collision_vec.len(),
+    })
 }
