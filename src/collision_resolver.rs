@@ -13,6 +13,17 @@ pub fn update_collisions(w: &mut world::World) {
             apply_forces(&mut a[i], &mut b[0], info);
         }
     }
+
+    for _ in 0..5 {
+        for i in 0..w.bodies.len() {
+            for j in (i + 1)..w.bodies.len() {
+                let (a, b) = w.bodies.split_at_mut(j);
+                let info = check_collision(&a[i], &b[0]);
+                resolve_collision(&mut a[i], &mut b[0], info);
+                //resolve_collision_2(&mut a[i], &mut b[0], info);
+            }
+        }
+    }
 }
 
 fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
@@ -106,6 +117,17 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
         ) => collision_capsule_capsule(a.pos, rad_a, half_len_a, a.ang, b.pos, rad_b, half_len_b, b.ang),
     }
 }
+fn resolve_collision(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
+    if let Some(info) = info {
+        let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
+        //the momvent rate represent how much of the depth is affected to each body
+        let movement_rate_a = body_a.inv_mass / inv_mass_tot;
+        let movement_rate_b = body_b.inv_mass / inv_mass_tot;
+        //each body only gets affected of its proportional depth taking the heavier the object the less change
+        body_a.pos += info.depth * info.n * movement_rate_a;
+        body_b.pos -= info.depth * info.n * movement_rate_b;
+    }
+}
 
 fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
     if let Some(info) = info {
@@ -114,24 +136,32 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo
             //two static bodies
             return;
         }
-        let imp = (((body_a.vel - body_b.vel).dot(info.n)) * -2.0) / inv_mass_tot; //calculation of the impulse
-        body_a.vel += info.n * imp * body_a.inv_mass;
-        body_b.vel -= info.n * imp * body_b.inv_mass;
+        let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
+        let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
+
+        if vel_along_normal <= 0.0 {
+            //if a is getting nearer to b we apply the impulse
+            let imp = (vel_along_normal * -2.0) / inv_mass_tot;
+            body_a.vel += info.n * imp * body_a.inv_mass;
+            body_b.vel -= info.n * imp * body_b.inv_mass;
+        }
+        // let imp = (((body_a.vel - body_b.vel).dot(info.n)) * -2.0) / inv_mass_tot; //calculation of the impulse
+        // body_a.vel += info.n * imp * body_a.inv_mass;
+        // body_b.vel -= info.n * imp * body_b.inv_mass;
 
         //the momvent rate represent how much of the depth is affected to each body
-        let movement_rate_a = body_a.inv_mass / inv_mass_tot;
-        let movement_rate_b = body_b.inv_mass / inv_mass_tot;
-
-        //each body only gets affected of its proportional depth taking the heavier the object the less change
-        body_a.pos += info.depth * info.n * movement_rate_a;
-        body_b.pos -= info.depth * info.n * movement_rate_b;
+        // let movement_rate_a = body_a.inv_mass / inv_mass_tot;
+        // let movement_rate_b = body_b.inv_mass / inv_mass_tot;
+        // //each body only gets affected of its proportional depth taking the heavier the object the less change
+        // body_a.pos += info.depth * info.n * movement_rate_a;
+        // body_b.pos -= info.depth * info.n * movement_rate_b;
     }
 }
 
 // ------------------------------------------
 // COLLIDER FUNCTIONS FUNCTIONS
 // ------------------------------------------
-
+#[derive(Clone, Copy)]
 struct CollisionInfo {
     n: Vec2,    //Perpendicular vector to the surface
     depth: f32, //distance the bodies has entered each other in the n vector direction
@@ -264,18 +294,21 @@ fn collision_circle_capsule(
     cap_hl: f32, //capsule half legth
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
-    let offset_dir = v2!(cap_ang.sin(), cap_ang.cos());
+    let offset_dir = v2!(cap_ang.cos(), cap_ang.sin());
     let circ_cap_vec = circle_pos - cap_pos; //vector capsule(center) - circle
 
     let pro_len = circ_cap_vec.dot(offset_dir).clamp(-cap_hl, cap_hl); //the lenght of the projection, can be negative if its in the other direction respect to certer_p1:Vec
+
     let nearest_point = cap_pos + pro_len * offset_dir;
 
     let vec = circle_pos - nearest_point; //vector from the nearest point of the capsule to the circle
+
     if vec.len_sq() > (circ_rad + cap_rad) * (circ_rad + cap_rad) {
         //if the distance is bigger than the two radius is to far
         return None;
     }
     let distance = vec.len(); //real distance
+    //println!("{}", vec.normalize());
     Some(CollisionInfo {
         n: vec.normalize(),
         depth: (circ_rad + cap_rad) - distance,
