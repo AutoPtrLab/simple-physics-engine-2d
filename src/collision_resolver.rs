@@ -9,13 +9,14 @@ pub fn update_collisions(w: &mut world::World) {
     for i in 0..w.bodies.len() {
         for j in (i + 1)..w.bodies.len() {
             let (a, b) = w.bodies.split_at_mut(j);
-            check_collision(&mut a[i], &mut b[0]);
+            let info = check_collision(&a[i], &b[0]);
+            apply_forces(&mut a[i], &mut b[0], info);
         }
     }
 }
 
-fn check_collision(a: &mut Body, b: &mut Body) {
-    let info = match (a.shape, b.shape) {
+fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
+    match (a.shape, b.shape) {
         // --- CIRCLE VS ALL ---
         (Shape::Circle { rad: rad_a }, Shape::Circle { rad: rad_b }) =>
         // Your Circle vs Circle function
@@ -28,7 +29,10 @@ fn check_collision(a: &mut Body, b: &mut Body) {
         }
 
         (Shape::Circle { rad }, Shape::Line { p }) => collision_circle_line(a.pos, rad, b.pos, p),
-
+        //circle vs capsule
+        (Shape::Circle { rad: circ_rad }, Shape::Capsule { rad: cap_rad, half_len }) => {
+            collision_circle_capsule(a.pos, circ_rad, b.pos, cap_rad, half_len, b.ang)
+        }
         (
             Shape::Rectangle {
                 width: w_a,
@@ -50,16 +54,12 @@ fn check_collision(a: &mut Body, b: &mut Body) {
             })
         }
 
-        (Shape::Rectangle { width, height }, Shape::Line { p }) => {
-            // Your Rectangle vs Line function
-            todo!()
+        (Shape::Rectangle { width, height }, Shape::Line { p }) => collision_rect_line(a.pos, width, height, b.pos, p),
+        (Shape::Rectangle { width, height }, Shape::Capsule { rad, half_len }) => {
+            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, b.ang)
         }
-
         // --- LINE VS ALL ---
-        (Shape::Line { p: p1_a }, Shape::Line { p: p1_b }) => {
-            // Your Line vs Line function
-            todo!()
-        }
+        (Shape::Line { p: _p1_a }, Shape::Line { p: _p1_b }) => None,
         (Shape::Line { p }, Shape::Circle { rad }) => {
             collision_circle_line(b.pos, rad, a.pos, p).map(|info| CollisionInfo {
                 n: -info.n,
@@ -68,27 +68,63 @@ fn check_collision(a: &mut Body, b: &mut Body) {
         }
         (Shape::Line { p }, Shape::Rectangle { width, height }) => {
             // Your Line vs Rectangle function (you can call the inverse)
-            todo!()
+            collision_rect_line(b.pos, width, height, a.pos, p).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
         }
-    };
-    //corrections and impulse calc
+        (Shape::Line { p: line_p }, Shape::Capsule { rad, half_len }) => {
+            collision_line_capsule(a.pos, line_p, b.pos, half_len, rad, b.ang).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
+        }
+        (Shape::Capsule { rad: cap_rad, half_len }, Shape::Circle { rad: circ_rad }) => {
+            collision_circle_capsule(b.pos, circ_rad, a.pos, cap_rad, half_len, a.ang).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
+        }
+        (Shape::Capsule { rad, half_len }, Shape::Line { p: line_p }) => {
+            collision_line_capsule(b.pos, line_p, a.pos, half_len, rad, a.ang)
+        }
+        (Shape::Capsule { rad, half_len }, Shape::Rectangle { width, height }) => {
+            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, a.ang).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
+        }
+        (
+            Shape::Capsule {
+                rad: rad_a,
+                half_len: half_len_a,
+            },
+            Shape::Capsule {
+                rad: rad_b,
+                half_len: half_len_b,
+            },
+        ) => collision_capsule_capsule(a.pos, rad_a, half_len_a, a.ang, b.pos, rad_b, half_len_b, b.ang),
+    }
+}
+
+fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
     if let Some(info) = info {
-        let inv_mass_tot = a.inv_mass + b.inv_mass;
+        let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
         if inv_mass_tot <= 0.0 {
             //two static bodies
             return;
         }
-        let imp = (((a.vel - b.vel).dot(info.n)) * -2.0) / inv_mass_tot; //calculation of the impulse
-        a.vel += info.n * imp * a.inv_mass;
-        b.vel -= info.n * imp * b.inv_mass;
+        let imp = (((body_a.vel - body_b.vel).dot(info.n)) * -2.0) / inv_mass_tot; //calculation of the impulse
+        body_a.vel += info.n * imp * body_a.inv_mass;
+        body_b.vel -= info.n * imp * body_b.inv_mass;
 
         //the momvent rate represent how much of the depth is affected to each body
-        let movement_rate_a = a.inv_mass / inv_mass_tot;
-        let movement_rate_b = b.inv_mass / inv_mass_tot;
+        let movement_rate_a = body_a.inv_mass / inv_mass_tot;
+        let movement_rate_b = body_b.inv_mass / inv_mass_tot;
 
         //each body only gets affected of its proportional depth taking the heavier the object the less change
-        a.pos += info.depth * info.n * movement_rate_a;
-        b.pos -= info.depth * info.n * movement_rate_b;
+        body_a.pos += info.depth * info.n * movement_rate_a;
+        body_b.pos -= info.depth * info.n * movement_rate_b;
     }
 }
 
@@ -184,15 +220,18 @@ fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h
         })
     }
 }
-fn collision_rect_line(a_pos: Vec2, w_a: f32) {}
+fn collision_rect_line(_rect_pos: Vec2, _w: f32, _h: f32, _p1_pos: Vec2, _p2_pos: Vec2) -> Option<CollisionInfo> {
+    None
+}
+///Resolver between circles and lines
 fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
-    //maybe sq is more efficient
+    //maybe sq is more efficient and the n vector can be precalculate
     let line_vec = p2_pos - p1_pos;
 
     let p1_circ_vec = circle_pos - p1_pos;
 
     let p1_circ_len = p1_circ_vec.len();
-    let proyection_lenght = (p1_circ_vec.dot(line_vec) / line_vec.len());
+    let proyection_lenght = p1_circ_vec.dot(line_vec) / line_vec.len();
     if proyection_lenght.abs() > line_vec.len() {
         //so the proyection is the lenght no neg values
         // if the proyection itself is bigger than the line it doesnt collide
@@ -211,9 +250,68 @@ fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2)
     let nearest_point = p1_pos + proyection_vec;
     let collision_vec = circle_pos - nearest_point; //the vector bewtween the point of collision and the circle
 
-    println!("{}", collision_vec.normalize());
+    // println!("{}", collision_vec.normalize());
     Some(CollisionInfo {
         n: collision_vec.normalize(),
         depth: rad - collision_vec.len(),
     })
+}
+fn collision_circle_capsule(
+    circle_pos: Vec2,
+    circ_rad: f32,
+    cap_pos: Vec2,
+    cap_rad: f32,
+    cap_hl: f32, //capsule half legth
+    cap_ang: f32,
+) -> Option<CollisionInfo> {
+    let offset_dir = v2!(cap_ang.sin(), cap_ang.cos());
+    let circ_cap_vec = circle_pos - cap_pos; //vector capsule(center) - circle
+
+    let pro_len = circ_cap_vec.dot(offset_dir).clamp(-cap_hl, cap_hl); //the lenght of the projection, can be negative if its in the other direction respect to certer_p1:Vec
+    let nearest_point = cap_pos + pro_len * offset_dir;
+
+    let vec = circle_pos - nearest_point; //vector from the nearest point of the capsule to the circle
+    if vec.len_sq() > (circ_rad + cap_rad) * (circ_rad + cap_rad) {
+        //if the distance is bigger than the two radius is to far
+        return None;
+    }
+    let distance = vec.len(); //real distance
+    Some(CollisionInfo {
+        n: vec.normalize(),
+        depth: (circ_rad + cap_rad) - distance,
+    })
+}
+fn collision_rect_capsule(
+    rect_pos: Vec2,
+    w: f32,
+    h: f32,
+    capsule_pos: Vec2,
+    rad: f32,
+    cap_hl: f32,
+    cap_ang: f32,
+) -> Option<CollisionInfo> {
+    return None;
+}
+fn collision_line_capsule(
+    line_p1: Vec2,
+    line_p2: Vec2,
+    cap_pos: Vec2,
+    cap_hl: f32,
+    rad: f32,
+    cap_ang: f32,
+) -> Option<CollisionInfo> {
+    return None;
+}
+
+fn collision_capsule_capsule(
+    pos_a: Vec2,
+    rad_a: f32,
+    hl_a: f32,
+    ang_a: f32,
+    pos_b: Vec2,
+    rad_b: f32,
+    hl_b: f32,
+    ang_b: f32,
+) -> Option<CollisionInfo> {
+    return None;
 }
