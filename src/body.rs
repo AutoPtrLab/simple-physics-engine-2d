@@ -16,7 +16,7 @@ pub struct Body {
     pub vel: Vec2,
     pub accel: Vec2,
     //Cinematic rotacional vars (they are scalars beacuse they are always referencing the z axis)
-    pub ang: f32,     //radians
+    pub ang: f32,     //radians, is clockwise
     pub ang_vel: f32, //angular velocity rad/s
     //there is no need for the angular acceleration
     //Dinamic properties

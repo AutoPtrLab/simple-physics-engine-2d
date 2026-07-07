@@ -49,6 +49,7 @@ impl World {
     }
     ///new line, static line , recieves two bodies
     pub fn add_line(&mut self, p1: Vec2, p2: Vec2) {
+        assert!(p1 - p2 != Vec2::ZERO, "Cant make a line with legth zero");
         self.bodies.push(Body {
             pos: p1,
             vel: Vec2::ZERO,
@@ -63,6 +64,7 @@ impl World {
     ///adds a capsuel to the world, the lenght here does not count the radius of the two circles,angles in DEG
     pub fn add_capsule(&mut self, pos: Vec2, vel: Vec2, rad: f32, length: f32, mass: f32, ang: f32) {
         assert!(mass > 0.0, "mass cannot be 0 or negative");
+        assert!(length > 0.0, "A capsule cannot have zero or negative length");
         let density = mass / (2.0 * length * rad + PI * rad * rad);
         let i = (length * length * length) * rad * 0.166667
             + 2.0 * length * rad * rad * rad

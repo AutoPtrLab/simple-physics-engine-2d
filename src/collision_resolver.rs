@@ -1,3 +1,5 @@
+use std::arch::x86_64::_mm256_add_ps;
+
 use crate::v2;
 use crate::world;
 use crate::{
@@ -14,7 +16,7 @@ pub fn update_collisions(w: &mut world::World) {
         }
     }
 
-    for _ in 0..5 {
+    for _ in 0..4 {
         for i in 0..w.bodies.len() {
             for j in (i + 1)..w.bodies.len() {
                 let (a, b) = w.bodies.split_at_mut(j);
@@ -67,7 +69,10 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
 
         (Shape::Rectangle { width, height }, Shape::Line { p }) => collision_rect_line(a.pos, width, height, b.pos, p),
         (Shape::Rectangle { width, height }, Shape::Capsule { rad, half_len }) => {
-            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, b.ang)
+            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, b.ang).map(|info| CollisionInfo {
+                n: -info.n,
+                depth: info.depth,
+            })
         }
         // --- LINE VS ALL ---
         (Shape::Line { p: _p1_a }, Shape::Line { p: _p1_b }) => None,
@@ -100,10 +105,7 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_line_capsule(b.pos, line_p, a.pos, half_len, rad, a.ang)
         }
         (Shape::Capsule { rad, half_len }, Shape::Rectangle { width, height }) => {
-            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, a.ang).map(|info| CollisionInfo {
-                n: -info.n,
-                depth: info.depth,
-            })
+            collision_rect_capsule(b.pos, width, height, a.pos, rad, half_len, a.ang)
         }
         (
             Shape::Capsule {
@@ -260,30 +262,22 @@ fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2)
 
     let p1_circ_vec = circle_pos - p1_pos;
 
-    let p1_circ_len = p1_circ_vec.len();
-    let proyection_lenght = p1_circ_vec.dot(line_vec) / line_vec.len();
-    if proyection_lenght.abs() > line_vec.len() {
-        //so the proyection is the lenght no neg values
-        // if the proyection itself is bigger than the line it doesnt collide
-        return None;
-    }
-    //Pitagoras
-    let dist = ((p1_circ_len * p1_circ_len) - (proyection_lenght * proyection_lenght)).sqrt();
+    let projection_lenght = p1_circ_vec.dot(line_vec) / line_vec.len();
+    let nearest_point = p1_pos + line_vec.normalize() * projection_lenght;
+    let real_x = nearest_point.x.clamp(p1_pos.x.min(p2_pos.x), p1_pos.x.max(p2_pos.x));
+    let real_y = nearest_point.y.clamp(p1_pos.y.min(p2_pos.y), p1_pos.y.max(p2_pos.y));
+
+    let dist_vec = circle_pos - v2!(real_x, real_y);
 
     //if the dist is bigger than the radius they are not colliding
-    if dist > rad {
+    if dist_vec.len_sq() > (rad * rad) {
         //println!("{}", dist);
         return None;
-    }
-    //println!("Consegiodo:{}", dist);
-    let proyection_vec = proyection_lenght * line_vec.normalize();
-    let nearest_point = p1_pos + proyection_vec;
-    let collision_vec = circle_pos - nearest_point; //the vector bewtween the point of collision and the circle
-
+    };
     // println!("{}", collision_vec.normalize());
     Some(CollisionInfo {
-        n: collision_vec.normalize(),
-        depth: rad - collision_vec.len(),
+        n: dist_vec.normalize(),
+        depth: rad - dist_vec.len(),
     })
 }
 fn collision_circle_capsule(
@@ -314,26 +308,46 @@ fn collision_circle_capsule(
         depth: (circ_rad + cap_rad) - distance,
     })
 }
+//The rect cant rotate
 fn collision_rect_capsule(
     rect_pos: Vec2,
     w: f32,
     h: f32,
-    capsule_pos: Vec2,
+    cap_pos: Vec2,
     rad: f32,
     cap_hl: f32,
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
-    return None;
+    //Calculation of the nearest poiint of hte capssule in the circle
+    let cap_rect_vec = rect_pos - cap_pos;
+    let capsule_line = v2!(cap_ang.cos(), cap_ang.sin());
+
+    let proj_len = cap_rect_vec.dot(capsule_line).clamp(-cap_hl, cap_hl); //projection
+
+    let circle_pos = proj_len * capsule_line + cap_pos; //point representing the subcircle insid ef thee capsule
+    //Since now we are working with a circle and a rectangle we can call our circle vs rect collider resoveler
+    collision_circle_rect(circle_pos, rad, rect_pos, w, h)
 }
 fn collision_line_capsule(
     line_p1: Vec2,
     line_p2: Vec2,
     cap_pos: Vec2,
     cap_hl: f32,
+
     rad: f32,
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
-    return None;
+    let line_vec = line_p2 - line_p1;
+    let line_len_sq = line_vec.len_sq();
+
+    let cap_vec = v2!(cap_ang.cos(), cap_ang.sin());
+    let t_line = ((cap_pos - line_p1).dot(line_vec) / line_len_sq).clamp(0.0, 1.0); //lets find where is the nearest point in the line is ( we divide by the leght sq so the fucntion give as the porcentage of the lane not the legth it selg)
+    let closest_point = line_p1 + t_line * line_vec;
+    let cap_point = closest_point - cap_pos;
+
+    let proj_len = cap_point.dot(cap_vec).clamp(-cap_hl, cap_hl);
+    let circle_pos = cap_pos + (cap_vec * proj_len);
+    collision_circle_line(circle_pos, rad, line_p1, line_p2)
 }
 
 fn collision_capsule_capsule(
@@ -346,5 +360,54 @@ fn collision_capsule_capsule(
     hl_b: f32,
     ang_b: f32,
 ) -> Option<CollisionInfo> {
-    return None;
+    //director vecs of the capsules
+    let dir_a = v2!(ang_a.cos(), ang_a.sin());
+    let dir_b = v2!(ang_b.cos(), ang_b.sin());
+
+    //each edge-point of the capsule line
+    let p1 = pos_a - dir_a * hl_a;
+    let q1 = pos_a + dir_a * hl_a;
+    let p2 = pos_b - dir_b * hl_b;
+    let q2 = pos_b + dir_b * hl_b;
+
+    let d1 = q1 - p1; //capsule 1 vector
+    let d2 = q2 - p2; //capsule 2 vector
+    let r = p1 - p2; //p2p1 vec
+
+    let a = d1.len_sq();
+    let e = d2.len_sq();
+    let f = d2.dot(r);
+    let c = d1.dot(r);
+    let b = d1.dot(d2);
+    //nearest_point_1 = start + dir_a*s
+    //s = (b*f -c*e)/(a*e-b²) -> vectorial equation to find the parametrical that shows as the nearest point
+    let mut s;
+    let mut t; //t is analog to s but in the second capsule
+
+    let denom = a * e - b * b;
+    if denom != 0.0 {
+        //if the dot product is zero the lines are paralel
+        s = ((b * f - c * e) / denom).clamp(0.0, 1.0); //clamping because we are dealing with segments and not infinite lines
+    } else {
+        //the two line are paralel so we just pick the first point of the capsule
+        s = 0.0;
+    }
+
+    t = (b * s + f) / e;
+
+    //t edge case( when the nearest point is not in the capsule segment)
+    // we have to also recalculate s since we have a new t
+    if t < 0.0 {
+        t = 0.0;
+        s = (-c / a).clamp(0.0, 1.0);
+    } else if t > 1.0 {
+        t = 1.0;
+        s = ((b - c) / a).clamp(0.0, 1.0);
+    }
+
+    //coordinates of the virtual cicle
+    let circ_a = p1 + d1 * s;
+    let circ_b = p2 + d2 * t;
+
+    collision_circle_circle(circ_a, rad_a, circ_b, rad_b)
 }
