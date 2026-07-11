@@ -1,5 +1,4 @@
-use std::arch::x86_64::_mm256_add_ps;
-
+use crate::body;
 use crate::v2;
 use crate::world;
 use crate::{
@@ -64,6 +63,7 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_circle_rect(b.pos, rad, a.pos, width, height).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
 
@@ -72,6 +72,7 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, b.ang).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
         // --- LINE VS ALL ---
@@ -80,6 +81,7 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_circle_line(b.pos, rad, a.pos, p).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
         (Shape::Line { p }, Shape::Rectangle { width, height }) => {
@@ -87,18 +89,21 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_rect_line(b.pos, width, height, a.pos, p).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
         (Shape::Line { p: line_p }, Shape::Capsule { rad, half_len }) => {
             collision_line_capsule(a.pos, line_p, b.pos, half_len, rad, b.ang).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
         (Shape::Capsule { rad: cap_rad, half_len }, Shape::Circle { rad: circ_rad }) => {
             collision_circle_capsule(b.pos, circ_rad, a.pos, cap_rad, half_len, a.ang).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
+                impact_point: info.impact_point,
             })
         }
         (Shape::Capsule { rad, half_len }, Shape::Line { p: line_p }) => {
@@ -122,6 +127,12 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
 fn resolve_collision(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
     if let Some(info) = info {
         let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
+        if inv_mass_tot == 0.0 {
+            //two static objects
+            body_a.pos += info.depth * info.n * 0.5;
+            body_b.pos -= info.depth * info.n * 0.5;
+            return;
+        }
         //the momvent rate represent how much of the depth is affected to each body
         let movement_rate_a = body_a.inv_mass / inv_mass_tot;
         let movement_rate_b = body_b.inv_mass / inv_mass_tot;
@@ -135,28 +146,36 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo
     if let Some(info) = info {
         let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
         if inv_mass_tot <= 0.0 {
-            //two static bodies
-            return;
+            match (body_a.shape, body_b.shape) {
+                (Shape::Rectangle { .. }, Shape::Rectangle { .. }) => {
+                    body_a.vel = -body_a.vel;
+                    body_b.vel = -body_b.vel;
+                    return;
+                }
+                (Shape::Line { .. }, Shape::Rectangle { .. }) => {
+                    body_b.vel = -body_b.vel;
+                    return;
+                }
+                (Shape::Rectangle { .. }, Shape::Line { .. }) => {
+                    body_a.vel = -body_a.vel;
+                    return;
+                }
+                _ => (),
+            }
         }
+        let collision_point = info
+            .impact_point
+            .expect("After the Line vs Rect and Rect vs Rect there cannot be a None in the collision point");
         let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
         let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
-
         if vel_along_normal <= 0.0 {
             //if a is getting nearer to b we apply the impulse
             let imp = (vel_along_normal * -2.0) / inv_mass_tot;
             body_a.vel += info.n * imp * body_a.inv_mass;
             body_b.vel -= info.n * imp * body_b.inv_mass;
+            body_a.ang_vel += ((collision_point - body_a.pos).cross(info.n * imp)) * body_a.inv_inert;
+            body_b.ang_vel += ((collision_point - body_b.pos).cross(-(info.n * imp))) * body_b.inv_inert;
         }
-        // let imp = (((body_a.vel - body_b.vel).dot(info.n)) * -2.0) / inv_mass_tot; //calculation of the impulse
-        // body_a.vel += info.n * imp * body_a.inv_mass;
-        // body_b.vel -= info.n * imp * body_b.inv_mass;
-
-        //the momvent rate represent how much of the depth is affected to each body
-        // let movement_rate_a = body_a.inv_mass / inv_mass_tot;
-        // let movement_rate_b = body_b.inv_mass / inv_mass_tot;
-        // //each body only gets affected of its proportional depth taking the heavier the object the less change
-        // body_a.pos += info.depth * info.n * movement_rate_a;
-        // body_b.pos -= info.depth * info.n * movement_rate_b;
     }
 }
 
@@ -165,8 +184,9 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo
 // ------------------------------------------
 #[derive(Clone, Copy)]
 struct CollisionInfo {
-    n: Vec2,    //Perpendicular vector to the surface
-    depth: f32, //distance the bodies has entered each other in the n vector direction
+    n: Vec2,                    //Perpendicular vector to the surface
+    depth: f32,                 //distance the bodies has entered each other in the n vector direction
+    impact_point: Option<Vec2>, //point where the two bodies collided if is none is because there is no rotation
 }
 fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32, height: f32) -> Option<CollisionInfo> {
     // clamping the nearest point of the rect to the circle
@@ -186,16 +206,20 @@ fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32,
 
     let ab_vec = circle_pos - v2![closest_x, closest_y]; //vector representing the distance between the center of the circle and the nearer side of the rect
     let dist = ab_vec.len();
+
     if dist == 0.0 {
         //if the are so close they are in the same coord, limit case
         return Some(CollisionInfo {
             n: v2![0.0, 1.0],
             depth: rad,
+            impact_point: Some(v2![0.0, 1.0] * rad + circle_pos),
         });
     }
+    let n = ab_vec.normalize();
     Some(CollisionInfo {
-        n: ab_vec.normalize(),
+        n,
         depth: (rad - dist),
+        impact_point: Some(n * rad + circle_pos),
     })
 }
 fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option<CollisionInfo> {
@@ -208,9 +232,11 @@ fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option
 
     let dist = ab_vec.len();
     let ideal_dist = ra + rb;
+    let n = ab_vec.normalize();
     Some(CollisionInfo {
-        n: ab_vec.normalize(),
+        n,
         depth: ideal_dist - dist,
+        impact_point: Some(n * ra + a_pos),
     })
 }
 //only supporting AABB
@@ -242,6 +268,7 @@ fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h
         Some(CollisionInfo {
             n: v2!(n_x, 0.0),
             depth: depth_x,
+            impact_point: None,
         })
     } else {
         //top down collision
@@ -249,11 +276,71 @@ fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h
         Some(CollisionInfo {
             n: v2!(0.0, n_y),
             depth: depth_y,
+            impact_point: None,
         })
     }
 }
-fn collision_rect_line(_rect_pos: Vec2, _w: f32, _h: f32, _p1_pos: Vec2, _p2_pos: Vec2) -> Option<CollisionInfo> {
-    None
+fn collision_rect_line(rect_pos: Vec2, w: f32, h: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
+    let rx = w / 2.0;
+    let ry = h / 2.0;
+
+    let line_min_x = p1_pos.x.min(p2_pos.x);
+    let line_max_x = p1_pos.x.max(p2_pos.x);
+    let line_min_y = p1_pos.y.min(p2_pos.y);
+    let line_max_y = p1_pos.y.max(p2_pos.y);
+
+    if rect_pos.x + rx <= line_min_x || rect_pos.x - rx >= line_max_x {
+        return None;
+    }
+    if rect_pos.y + ry <= line_min_y || rect_pos.y - ry >= line_max_y {
+        return None;
+    }
+
+    let line_vec = Vec2 {
+        x: p2_pos.x - p1_pos.x,
+        y: p2_pos.y - p1_pos.y,
+    };
+    let len = line_vec.len();
+
+    let dir = Vec2 {
+        x: line_vec.x / len,
+        y: line_vec.y / len,
+    };
+    let mut normal = Vec2 { x: -dir.y, y: dir.x }; //vector normal to the line
+
+    let vector_to_rect = Vec2 {
+        x: rect_pos.x - p1_pos.x,
+        y: rect_pos.y - p1_pos.y,
+    };
+
+    let proj_dir = vector_to_rect.dot(dir);
+    let r_proj_dir = rx * dir.x.abs() + ry * dir.y.abs();
+
+    if proj_dir + r_proj_dir <= 0.0 || proj_dir - r_proj_dir >= len {
+        return None;
+    }
+
+    let mut dist_to_line = vector_to_rect.dot(normal);
+
+    if dist_to_line < 0.0 {
+        normal = Vec2 {
+            x: -normal.x,
+            y: -normal.y,
+        };
+        dist_to_line = -dist_to_line;
+    }
+
+    let r_proj_normal = rx * normal.x.abs() + ry * normal.y.abs();
+    let depth = r_proj_normal - dist_to_line;
+    if depth <= 0.0 {
+        return None;
+    }
+
+    Some(CollisionInfo {
+        n: normal,
+        depth,
+        impact_point: None,
+    })
 }
 ///Resolver between circles and lines
 fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
@@ -275,9 +362,11 @@ fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2)
         return None;
     };
     // println!("{}", collision_vec.normalize());
+    let n = dist_vec.normalize();
     Some(CollisionInfo {
-        n: dist_vec.normalize(),
+        n,
         depth: rad - dist_vec.len(),
+        impact_point: Some(n * rad + circle_pos),
     })
 }
 fn collision_circle_capsule(
@@ -303,9 +392,11 @@ fn collision_circle_capsule(
     }
     let distance = vec.len(); //real distance
     //println!("{}", vec.normalize());
+    let n = vec.normalize();
     Some(CollisionInfo {
-        n: vec.normalize(),
+        n,
         depth: (circ_rad + cap_rad) - distance,
+        impact_point: Some(n * circ_rad + circle_pos),
     })
 }
 //The rect cant rotate
@@ -338,18 +429,46 @@ fn collision_line_capsule(
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
     let line_vec = line_p2 - line_p1;
-    let line_len_sq = line_vec.len_sq();
+    //let line_dir = line_vec.normalize(); //direction vector of the line
+    let cap_dir = v2!(cap_ang.cos(), cap_ang.sin()); // direction vector of the capsule
+    let cap_p1 = cap_pos + cap_dir * cap_hl;
+    let cap_p2 = cap_pos - cap_dir * cap_hl;
+    let cap_vec = cap_p2 - cap_p1;
+    let r = line_p1 - cap_p1;
 
-    let cap_vec = v2!(cap_ang.cos(), cap_ang.sin());
-    let t_line = ((cap_pos - line_p1).dot(line_vec) / line_len_sq).clamp(0.0, 1.0); //lets find where is the nearest point in the line is ( we divide by the leght sq so the fucntion give as the porcentage of the lane not the legth it selg)
-    let closest_point = line_p1 + t_line * line_vec;
-    let cap_point = closest_point - cap_pos;
+    // variables to find the nearest point of each line
+    let a = cap_vec.len_sq();
+    let e = line_vec.len_sq();
+    let f = line_vec.dot(r);
+    let c = cap_vec.dot(r);
+    let b = cap_vec.dot(line_vec);
 
-    let proj_len = cap_point.dot(cap_vec).clamp(-cap_hl, cap_hl);
-    let circle_pos = cap_pos + (cap_vec * proj_len);
-    collision_circle_line(circle_pos, rad, line_p1, line_p2)
+    //parametrics variables
+    let mut s: f32;
+
+    //s = (b*f -c*e)/(a*e-b²) -> vectorial equation to find the parametrical that shows as the nearest point
+    let denom = a * e - b * b;
+    if denom != 0.0 {
+        //if the dot product is zero the lines are paralel
+        s = ((b * f - c * e) / denom).clamp(0.0, 1.0); //clamping because we are dealing with segments and not infinite lines
+    } else {
+        //the two line are paralel so we just pick the first point of the capsule
+        s = 0.0;
+    }
+    //parametrical value
+    let t = (b * s + f) / e;
+
+    //t edge case( when the nearest point is not in the capsule segment)
+    // we have to also recalculate s since we have a new t
+    if t < 0.0 {
+        s = (-c / a).clamp(0.0, 1.0);
+    } else if t > 1.0 {
+        s = ((b - c) / a).clamp(0.0, 1.0);
+    }
+
+    let virtual_circ = cap_p1 + s * cap_dir;
+    collision_circle_line(virtual_circ, rad, line_p1, line_p2)
 }
-
 fn collision_capsule_capsule(
     pos_a: Vec2,
     rad_a: f32,
