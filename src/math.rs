@@ -5,7 +5,7 @@ use std::{
 
 ///Struct representing a Vector in a two dimensional spaces
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -128,10 +128,7 @@ impl Neg for Vec2 {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self::Output {
-        Self {
-            x: -self.x,
-            y: -self.y,
-        }
+        Self { x: -self.x, y: -self.y }
     }
 }
 
@@ -204,7 +201,7 @@ impl Vec2 {
 #[macro_export]
 macro_rules! v2 {
     ($x:expr, $y:expr) => {
-        Vec2 { x: $x, y: $y }
+        $crate::math::Vec2 { x: $x, y: $y }
     };
 }
 

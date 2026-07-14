@@ -1,30 +1,50 @@
-use crate::body;
+use crate::body_shapes::body::{Body, Shape};
+use crate::math::Vec2;
 use crate::v2;
-use crate::world;
-use crate::{
-    body::{Body, Shape},
-    math::Vec2,
-};
 
-pub fn update_collisions(w: &mut world::World) {
-    for i in 0..w.bodies.len() {
-        for j in (i + 1)..w.bodies.len() {
-            let (a, b) = w.bodies.split_at_mut(j);
-            let info = check_collision(&a[i], &b[0]);
-            apply_forces(&mut a[i], &mut b[0], info);
-        }
-    }
+///Collision Event info
+pub struct CollisionEvent {
+    pub body_a_id: usize,
+    pub body_b_id: usize,
+}
 
-    for _ in 0..4 {
-        for i in 0..w.bodies.len() {
-            for j in (i + 1)..w.bodies.len() {
-                let (a, b) = w.bodies.split_at_mut(j);
-                let info = check_collision(&a[i], &b[0]);
-                resolve_collision(&mut a[i], &mut b[0], info);
-                //resolve_collision_2(&mut a[i], &mut b[0], info);
+///Checks the collisions and returns the info needed to calculate the response, if any of the bodies is a hitbox its just checks if they have collided and
+/// returns the index in the slice of all the collisions, two hitbox CANNOT collide
+pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
+    //we create the collision event Vec
+    let mut event_vec: Vec<CollisionEvent> = vec![];
+    for i in 0..bodies.len() {
+        for j in (i + 1)..bodies.len() {
+            let (a, b) = bodies.split_at_mut(j);
+            if a[i].is_hitbox && b[0].is_hitbox {
+                //if the two bodies are hitbox we continue into the next iteration
+                continue;
+            }
+            if let Some(info) = check_collision(&a[i], &b[0]) {
+                apply_forces(&mut a[i], &mut b[0], info);
+                event_vec.push(CollisionEvent {
+                    body_a_id: i,
+                    body_b_id: j,
+                });
             }
         }
     }
+    //we iterate over the bodies so we can correctly resolve the collision and intrusion of the bodies
+    for _ in 0..4 {
+        for i in 0..bodies.len() {
+            for j in (i + 1)..bodies.len() {
+                let (a, b) = bodies.split_at_mut(j);
+                if a[i].is_hitbox && b[0].is_hitbox {
+                    //if the two bodies are hitbox we continue into the next iteration
+                    continue;
+                }
+                if let Some(info) = check_collision(&a[i], &b[0]) {
+                    resolve_collision(&mut a[i], &mut b[0], info);
+                }
+            }
+        }
+    }
+    event_vec
 }
 
 fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
@@ -124,56 +144,41 @@ fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
         ) => collision_capsule_capsule(a.pos, rad_a, half_len_a, a.ang, b.pos, rad_b, half_len_b, b.ang),
     }
 }
-fn resolve_collision(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
-    if let Some(info) = info {
-        let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
-        if inv_mass_tot == 0.0 {
-            //two static objects
-            body_a.pos += info.depth * info.n * 0.5;
-            body_b.pos -= info.depth * info.n * 0.5;
-            return;
-        }
-        //the momvent rate represent how much of the depth is affected to each body
-        let movement_rate_a = body_a.inv_mass / inv_mass_tot;
-        let movement_rate_b = body_b.inv_mass / inv_mass_tot;
-        //each body only gets affected of its proportional depth taking the heavier the object the less change
-        body_a.pos += info.depth * info.n * movement_rate_a;
-        body_b.pos -= info.depth * info.n * movement_rate_b;
+fn resolve_collision(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
+    let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
+    if inv_mass_tot == 0.0 {
+        //two static objects
+        body_a.pos += info.depth * info.n * 0.5;
+        body_b.pos -= info.depth * info.n * 0.5;
+        return;
     }
+    //the momvent rate represent how much of the depth is affected to each body
+    let movement_rate_a = body_a.inv_mass / inv_mass_tot;
+    let movement_rate_b = body_b.inv_mass / inv_mass_tot;
+    //each body only gets affected of its proportional depth taking the heavier the object the less change
+    body_a.pos += info.depth * info.n * movement_rate_a;
+    body_b.pos -= info.depth * info.n * movement_rate_b;
 }
 
-fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: Option<CollisionInfo>) {
-    if let Some(info) = info {
-        let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
-        if inv_mass_tot <= 0.0 {
-            match (body_a.shape, body_b.shape) {
-                (Shape::Rectangle { .. }, Shape::Rectangle { .. }) => {
-                    body_a.vel = -body_a.vel;
-                    body_b.vel = -body_b.vel;
-                    return;
-                }
-                (Shape::Line { .. }, Shape::Rectangle { .. }) => {
-                    body_b.vel = -body_b.vel;
-                    return;
-                }
-                (Shape::Rectangle { .. }, Shape::Line { .. }) => {
-                    body_a.vel = -body_a.vel;
-                    return;
-                }
-                _ => (),
-            }
-        }
-        let collision_point = info
-            .impact_point
-            .expect("After the Line vs Rect and Rect vs Rect there cannot be a None in the collision point");
-        let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
-        let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
-        if vel_along_normal <= 0.0 {
-            //if a is getting nearer to b we apply the impulse
-            let imp = (vel_along_normal * -2.0) / inv_mass_tot;
-            body_a.vel += info.n * imp * body_a.inv_mass;
-            body_b.vel -= info.n * imp * body_b.inv_mass;
+fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
+    let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
+    if inv_mass_tot <= 0.0 {
+        return; //two static objects
+    }
+    let collision_point = info
+        .impact_point
+        .expect("Cant be a None, two static objects have collided");
+    let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
+    let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
+    if vel_along_normal <= 0.0 {
+        //if a is getting nearer to b we apply the impulse
+        let imp = (vel_along_normal * -2.0) / inv_mass_tot;
+        body_a.vel += info.n * imp * body_a.inv_mass;
+        body_b.vel -= info.n * imp * body_b.inv_mass;
+        if body_a.is_rotable {
             body_a.ang_vel += ((collision_point - body_a.pos).cross(info.n * imp)) * body_a.inv_inert;
+        }
+        if body_b.is_rotable {
             body_b.ang_vel += ((collision_point - body_b.pos).cross(-(info.n * imp))) * body_b.inv_inert;
         }
     }
@@ -409,14 +414,23 @@ fn collision_rect_capsule(
     cap_hl: f32,
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
-    //Calculation of the nearest poiint of hte capssule in the circle
-    let cap_rect_vec = rect_pos - cap_pos;
+    let half_w = w * 0.5;
+    let half_h = h * 0.5;
+    let rect_min = rect_pos - v2!(half_w, half_h);
+    let rect_max = rect_pos + v2!(half_w, half_h);
+
+    let closest_rect_point = v2!(
+        cap_pos.x.clamp(rect_min.x, rect_max.x),
+        cap_pos.y.clamp(rect_min.y, rect_max.y)
+    );
+
+    let cap_rect_vec = closest_rect_point - cap_pos;
     let capsule_line = v2!(cap_ang.cos(), cap_ang.sin());
 
-    let proj_len = cap_rect_vec.dot(capsule_line).clamp(-cap_hl, cap_hl); //projection
+    let proj_len = cap_rect_vec.dot(capsule_line).clamp(-cap_hl, cap_hl);
 
-    let circle_pos = proj_len * capsule_line + cap_pos; //point representing the subcircle insid ef thee capsule
-    //Since now we are working with a circle and a rectangle we can call our circle vs rect collider resoveler
+    let circle_pos = proj_len * capsule_line + cap_pos;
+
     collision_circle_rect(circle_pos, rad, rect_pos, w, h)
 }
 fn collision_line_capsule(
@@ -429,44 +443,40 @@ fn collision_line_capsule(
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
     let line_vec = line_p2 - line_p1;
-    //let line_dir = line_vec.normalize(); //direction vector of the line
-    let cap_dir = v2!(cap_ang.cos(), cap_ang.sin()); // direction vector of the capsule
+    let cap_dir = v2!(cap_ang.cos(), cap_ang.sin());
+
     let cap_p1 = cap_pos + cap_dir * cap_hl;
     let cap_p2 = cap_pos - cap_dir * cap_hl;
     let cap_vec = cap_p2 - cap_p1;
     let r = line_p1 - cap_p1;
 
-    // variables to find the nearest point of each line
+    // Variables para la ecuación paramétrica
     let a = cap_vec.len_sq();
     let e = line_vec.len_sq();
     let f = line_vec.dot(r);
     let c = cap_vec.dot(r);
     let b = cap_vec.dot(line_vec);
 
-    //parametrics variables
+    let denom = a * e - b * b;
     let mut s: f32;
 
-    //s = (b*f -c*e)/(a*e-b²) -> vectorial equation to find the parametrical that shows as the nearest point
-    let denom = a * e - b * b;
     if denom != 0.0 {
-        //if the dot product is zero the lines are paralel
-        s = ((b * f - c * e) / denom).clamp(0.0, 1.0); //clamping because we are dealing with segments and not infinite lines
+        s = ((c * e - b * f) / denom).clamp(0.0, 1.0);
     } else {
-        //the two line are paralel so we just pick the first point of the capsule
-        s = 0.0;
+        //if they are paralel we pick the middle of the segments
+        s = 0.5;
     }
-    //parametrical value
-    let t = (b * s + f) / e;
 
-    //t edge case( when the nearest point is not in the capsule segment)
-    // we have to also recalculate s since we have a new t
+    let t = (b * s - f) / e;
+    //recalculation in case of t edge cases
     if t < 0.0 {
-        s = (-c / a).clamp(0.0, 1.0);
+        s = (c / a).clamp(0.0, 1.0);
     } else if t > 1.0 {
-        s = ((b - c) / a).clamp(0.0, 1.0);
+        s = ((b + c) / a).clamp(0.0, 1.0);
     }
 
-    let virtual_circ = cap_p1 + s * cap_dir;
+    let virtual_circ = cap_p1 + s * cap_vec;
+
     collision_circle_line(virtual_circ, rad, line_p1, line_p2)
 }
 fn collision_capsule_capsule(
@@ -508,8 +518,8 @@ fn collision_capsule_capsule(
         //if the dot product is zero the lines are paralel
         s = ((b * f - c * e) / denom).clamp(0.0, 1.0); //clamping because we are dealing with segments and not infinite lines
     } else {
-        //the two line are paralel so we just pick the first point of the capsule
-        s = 0.0;
+        //the two line are paralel so we just pick the mid point of the capsule
+        s = 0.5;
     }
 
     t = (b * s + f) / e;

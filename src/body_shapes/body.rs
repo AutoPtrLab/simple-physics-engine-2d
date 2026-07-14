@@ -20,7 +20,17 @@ pub struct Body {
     pub ang_vel: f32, //angular velocity rad/s
     //there is no need for the angular acceleration
     //Dinamic properties
-    pub inv_mass: f32, //1/mass ,better computing and no division / 0
-    pub inert: f32,    //inertia value, maybe chacnge to the inverse
+    pub inv_mass: f32,  //1/mass ,better computing and no division / 0
+    pub inv_inert: f32, //inertia value, maybe chacnge to the inverse
     pub shape: Shape,
+    //variables referencing the behaviour of the body
+    pub is_rotable: bool, //
+    pub is_hitbox: bool,
+}
+
+impl Body {
+    //helper
+    pub fn is_static(&self) -> bool {
+        self.inv_mass == 0.0
+    }
 }
