@@ -1,6 +1,7 @@
+use crate::body_shapes::body::BodyType::{Dynamic, Kinematic, Static};
 use crate::body_shapes::body::*;
 use crate::math::Vec2;
-///creates a circle
+///creates a Dynamic circle (non-rotable)
 pub fn new_circle(pos: Vec2, vel: Vec2, rad: f32, mass: f32) -> Body {
     assert!(mass > 0.0, "mass cannot be 0 or negative");
     assert!(rad > 0.0, "Cannot have a negative or zero  radius circle");
@@ -11,15 +12,48 @@ pub fn new_circle(pos: Vec2, vel: Vec2, rad: f32, mass: f32) -> Body {
         ang: 0.0,
         ang_vel: 0.0,
         inv_mass: 1.0 / mass,
-        inv_inert: 1.0 / (0.5 * mass * rad * rad), //I= 1/2 * M *r²
+        inv_inert: 0.0, //I= 1/2 * M *r²
         shape: Shape::Circle { rad },
         is_hitbox: false,
-        is_rotable: false,
+        body_type: Dynamic,
     }
 }
-///creates a circle hitbox
-pub fn new_hitbox_circle(pos: Vec2, vel: Vec2, rad: f32) -> Body {
-    assert!(rad > 0.0, "Cannot have a negative or zero radius circle");
+///creates a rotable circle
+pub fn new_rot_circle(pos: Vec2, vel: Vec2, rad: f32, mass: f32) -> Body {
+    assert!(mass > 0.0, "mass cannot be 0 or negative");
+    assert!(rad > 0.0, "Cannot have a negative or zero  radius circle");
+    Body {
+        pos,
+        vel,
+        accel: Vec2::ZERO,
+        ang: 0.0,
+        ang_vel: 0.0,
+        inv_mass: 1.0 / mass,
+        inv_inert: 0.5 * mass * rad * rad, //I= 1/2 * M *r²
+        shape: Shape::Circle { rad },
+        is_hitbox: false,
+        body_type: Dynamic,
+    }
+}
+///Creates a static circle
+pub fn new_static_circle(pos: Vec2, rad: f32) -> Body {
+    assert!(rad > 0.0, "Cannot have a negative or zero  radius circle");
+    Body {
+        pos,
+        vel: Vec2::ZERO,
+        accel: Vec2::ZERO,
+        ang: 0.0,
+        ang_vel: 0.0,
+        inv_mass: 0.0,
+        inv_inert: 0.0, //I= 1/2 * M *r²
+        shape: Shape::Circle { rad },
+        is_hitbox: false,
+        body_type: Static,
+    }
+}
+//Creates a kinematic circle
+pub fn new_kinematic_circle(pos: Vec2, vel: Vec2, rad: f32) -> Body {
+    assert!(rad > 0.0, "Cannot have a negative or zero  radius circle");
     Body {
         pos,
         vel,
@@ -29,7 +63,7 @@ pub fn new_hitbox_circle(pos: Vec2, vel: Vec2, rad: f32) -> Body {
         inv_mass: 0.0,
         inv_inert: 0.0, //I= 1/2 * M *r²
         shape: Shape::Circle { rad },
-        is_hitbox: true,
-        is_rotable: false,
+        is_hitbox: false,
+        body_type: Kinematic,
     }
 }

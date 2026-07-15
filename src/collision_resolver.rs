@@ -30,7 +30,7 @@ pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
         }
     }
     //we iterate over the bodies so we can correctly resolve the collision and intrusion of the bodies
-    for _ in 0..4 {
+    for _ in 0..3 {
         for i in 0..bodies.len() {
             for j in (i + 1)..bodies.len() {
                 let (a, b) = bodies.split_at_mut(j);
@@ -159,15 +159,14 @@ fn resolve_collision(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) 
     body_a.pos += info.depth * info.n * movement_rate_a;
     body_b.pos -= info.depth * info.n * movement_rate_b;
 }
-
+/// Impulse based reactions, if two static or kinematic objects collided the USER must expecify the behaviour, deafault is just like the hadnt collided
 fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
     let inv_mass_tot = body_a.inv_mass + body_b.inv_mass;
     if inv_mass_tot <= 0.0 {
         return; //two static objects
     }
-    let collision_point = info
-        .impact_point
-        .expect("Cant be a None, two static objects have collided");
+    let collision_point = info.impact_point;
+
     let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
     let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
     if vel_along_normal <= 0.0 {
@@ -175,10 +174,10 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
         let imp = (vel_along_normal * -2.0) / inv_mass_tot;
         body_a.vel += info.n * imp * body_a.inv_mass;
         body_b.vel -= info.n * imp * body_b.inv_mass;
-        if body_a.is_rotable {
+        if body_a.is_rotable() {
             body_a.ang_vel += ((collision_point - body_a.pos).cross(info.n * imp)) * body_a.inv_inert;
         }
-        if body_b.is_rotable {
+        if body_b.is_rotable() {
             body_b.ang_vel += ((collision_point - body_b.pos).cross(-(info.n * imp))) * body_b.inv_inert;
         }
     }
@@ -189,9 +188,9 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
 // ------------------------------------------
 #[derive(Clone, Copy)]
 struct CollisionInfo {
-    n: Vec2,                    //Perpendicular vector to the surface
-    depth: f32,                 //distance the bodies has entered each other in the n vector direction
-    impact_point: Option<Vec2>, //point where the two bodies collided if is none is because there is no rotation
+    n: Vec2,            //Perpendicular vector to the surface
+    depth: f32,         //distance the bodies has entered each other in the n vector direction
+    impact_point: Vec2, //point where the two bodies collided
 }
 fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32, height: f32) -> Option<CollisionInfo> {
     // clamping the nearest point of the rect to the circle
@@ -217,14 +216,14 @@ fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32,
         return Some(CollisionInfo {
             n: v2![0.0, 1.0],
             depth: rad,
-            impact_point: Some(v2![0.0, 1.0] * rad + circle_pos),
+            impact_point: v2![0.0, 1.0] * rad + circle_pos,
         });
     }
     let n = ab_vec.normalize();
     Some(CollisionInfo {
         n,
         depth: (rad - dist),
-        impact_point: Some(n * rad + circle_pos),
+        impact_point: n * rad + circle_pos,
     })
 }
 fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option<CollisionInfo> {
@@ -241,7 +240,7 @@ fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option
     Some(CollisionInfo {
         n,
         depth: ideal_dist - dist,
-        impact_point: Some(n * ra + a_pos),
+        impact_point: n * ra + a_pos,
     })
 }
 //only supporting AABB
@@ -264,24 +263,33 @@ fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h
 
     let depth_x = marginal_dist_x - dx.abs();
     let depth_y = marginal_dist_y - dy.abs();
-    //since we now ther is a collision
+    //since we now there is a collision
 
     if depth_x < depth_y {
         //side collision
-        let n_x = if dx > 0.0 { 1.0 } else { -1.0 }; //if dx is neg they collide in the left side
+        let info = if dx > 0.0 {
+            (1.0, v2!(a_pos.x + depth_x, a_pos.y))
+        } else {
+            (-1.0, v2!(a_pos.x - depth_x, a_pos.y))
+        }; //if dx is neg they collide in the left side
 
         Some(CollisionInfo {
-            n: v2!(n_x, 0.0),
+            n: v2!(info.0, 0.0),
             depth: depth_x,
-            impact_point: None,
+            impact_point: info.1,
         })
     } else {
         //top down collision
-        let n_y = if dy > 0.0 { 1.0 } else { -1.0 };
+
+        let info = if dy > 0.0 {
+            (1.0, v2!(a_pos.x, a_pos.y + depth_y))
+        } else {
+            (-1.0, v2!(a_pos.x, a_pos.y - depth_y))
+        }; //if dx is neg they collide in the left side
         Some(CollisionInfo {
-            n: v2!(0.0, n_y),
+            n: v2!(0.0, info.0),
             depth: depth_y,
-            impact_point: None,
+            impact_point: info.1,
         })
     }
 }
@@ -340,11 +348,27 @@ fn collision_rect_line(rect_pos: Vec2, w: f32, h: f32, p1_pos: Vec2, p2_pos: Vec
     if depth <= 0.0 {
         return None;
     }
+    let contact_x = if normal.x > 0.0 {
+        rect_pos.x - rx
+    } else {
+        rect_pos.x + rx
+    };
 
+    let contact_y = if normal.y > 0.0 {
+        rect_pos.y - ry
+    } else {
+        rect_pos.y + ry
+    };
+
+    // 2. Ese vértice es tu punto de impacto en coordenadas del mundo
+    let impact_point = Vec2 {
+        x: contact_x,
+        y: contact_y,
+    };
     Some(CollisionInfo {
         n: normal,
         depth,
-        impact_point: None,
+        impact_point,
     })
 }
 ///Resolver between circles and lines
@@ -371,7 +395,7 @@ fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2)
     Some(CollisionInfo {
         n,
         depth: rad - dist_vec.len(),
-        impact_point: Some(n * rad + circle_pos),
+        impact_point: n * rad + circle_pos,
     })
 }
 fn collision_circle_capsule(
@@ -401,10 +425,10 @@ fn collision_circle_capsule(
     Some(CollisionInfo {
         n,
         depth: (circ_rad + cap_rad) - distance,
-        impact_point: Some(n * circ_rad + circle_pos),
+        impact_point: n * circ_rad + circle_pos,
     })
 }
-//The rect cant rotate
+// this resolves in a two steps method where we aproximate where the virtual circle of the capsule is going to collide with the rectangle
 fn collision_rect_capsule(
     rect_pos: Vec2,
     w: f32,
@@ -430,8 +454,16 @@ fn collision_rect_capsule(
     let proj_len = cap_rect_vec.dot(capsule_line).clamp(-cap_hl, cap_hl);
 
     let circle_pos = proj_len * capsule_line + cap_pos;
+    //second interaction
+    let closest_2 = v2!(
+        circle_pos.x.clamp(rect_min.x, rect_max.x),
+        circle_pos.y.clamp(rect_min.y, rect_max.y)
+    );
 
-    collision_circle_rect(circle_pos, rad, rect_pos, w, h)
+    // we project agin
+    let proj_2 = (closest_2 - cap_pos).dot(capsule_line).clamp(-cap_hl, cap_hl);
+    let final_circle_pos = proj_2 * capsule_line + cap_pos;
+    collision_circle_rect(final_circle_pos, rad, rect_pos, w, h)
 }
 fn collision_line_capsule(
     line_p1: Vec2,
@@ -459,8 +491,8 @@ fn collision_line_capsule(
 
     let denom = a * e - b * b;
     let mut s: f32;
-
-    if denom != 0.0 {
+    //epsilon
+    if denom.abs() > 0.1 {
         s = ((c * e - b * f) / denom).clamp(0.0, 1.0);
     } else {
         //if they are paralel we pick the middle of the segments

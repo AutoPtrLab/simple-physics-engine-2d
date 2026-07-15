@@ -6,13 +6,14 @@ use simple_physics_engine_2d::prelude::*;
 #[macroquad::main("Simulation")]
 async fn main() {
     let mut bodies: Vec<Body> = vec![
-        new_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 90.0),
+        //new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
+        new_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 45.0),
         new_circle(v2!(700.0, 340.0), v2!(-400.0, -400.0), 10.0, 1000.0),
-        new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 100.0),
-        new_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 100000.0, 0.0),
+        new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
+        new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 0.0),
         new_line(v2!(0.0, 500.0), v2!(800.0, 500.0)),
         // Incluso puedes meter el suelo aquí mismo
-        new_rect(v2!(0.0, 590.0), v2!(0.0, 0.0), 10000.0, 20.0),
+        new_static_rect(v2!(0.0, 600.0), 1000.0, 100.0),
     ];
     loop {
         let dt = get_frame_time().min(0.016);
@@ -56,7 +57,7 @@ async fn main() {
             bodies[0].vel.y = -200.0;
         }
 
-        update_movement(&mut bodies, dt, v2!(0.0, -9.8), 0.99, 0.99);
+        update_movement(&mut bodies, dt, v2!(0.0, 90.0), 0.99, 0.95);
         let v = update_collisions(&mut bodies);
         for c in v {
             println!("{},{}", c.body_a_id, c.body_b_id);
