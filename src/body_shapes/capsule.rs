@@ -13,11 +13,24 @@ use crate::math::Vec2;
 use std::f32::consts::PI;
 
 ///Regular not rotable capsule
-pub fn new_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, mass: f32, ang: f32) -> Body {
+pub fn new_capsule(
+    pos: Vec2,
+    vel: Vec2,
+    rad: f32,
+    length: f32,
+    mass: f32,
+    ang: f32,
+    restitution_coef: f32,
+    friction_coef: f32,
+) -> Body {
     assert!(mass > 0.0, "mass cannot be 0 or negative");
     assert!(length > 0.0, "A capsule cannot have zero or negative length");
     assert!(rad > 0.0, "A capsule cannot have a null or negative radius");
-
+    assert!(
+        restitution_coef >= 0.0,
+        "Cannot implement a negative restitution coefficient"
+    );
+    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
     Body {
         pos,
         vel,
@@ -32,13 +45,31 @@ pub fn new_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, mass: f32, ang: 
         },
         is_hitbox: false,
         body_type: Dynamic,
+        restitution_coef,
+        friction_coef,
+        layer_bits: Layer::L0,
+        mask_bits: Layer::L0,
     }
 }
-//Rotable capsule
-pub fn new_rot_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, mass: f32, ang: f32) -> Body {
+///Rotable capsule
+pub fn new_rot_capsule(
+    pos: Vec2,
+    vel: Vec2,
+    rad: f32,
+    length: f32,
+    mass: f32,
+    ang: f32,
+    restitution_coef: f32,
+    friction_coef: f32,
+) -> Body {
     assert!(mass > 0.0, "mass cannot be 0 or negative");
     assert!(length > 0.0, "A capsule cannot have zero or negative length");
     assert!(rad > 0.0, "A capsule cannot have a null or negative radius");
+    assert!(
+        restitution_coef >= 0.0,
+        "Cannot implement a negative restitution coefficient"
+    );
+    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
     let density = mass / (2.0 * length * rad + PI * rad * rad);
     let i = (length * length * length) * rad * 0.166667
         + 2.0 * length * rad * rad * rad
@@ -58,9 +89,21 @@ pub fn new_rot_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, mass: f32, a
         },
         is_hitbox: false,
         body_type: Dynamic,
+        restitution_coef,
+        friction_coef,
+        layer_bits: Layer::L0,
+        mask_bits: Layer::L0,
     }
 }
-pub fn new_static_capsule(pos: Vec2, rad: f32, length: f32, ang: f32) -> Body {
+///new static capsule
+pub fn new_static_capsule(
+    pos: Vec2,
+    rad: f32,
+    length: f32,
+    ang: f32,
+    restitution_coef: f32,
+    friction_coef: f32,
+) -> Body {
     assert!(length > 0.0, "A capsule cannot have zero or negative length");
     assert!(rad > 0.0, "A capsule cannot have a null or negative radius");
     Body {
@@ -77,13 +120,29 @@ pub fn new_static_capsule(pos: Vec2, rad: f32, length: f32, ang: f32) -> Body {
         },
         is_hitbox: false,
         body_type: Static,
+        restitution_coef,
+        friction_coef,
+        layer_bits: Layer::L0,
+        mask_bits: Layer::L0,
     }
 }
-//kinematic capsule(infinite mass)
-
-pub fn new_kinematic_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, ang: f32) -> Body {
+///kinematic capsule(infinite mass)
+pub fn new_kinematic_capsule(
+    pos: Vec2,
+    vel: Vec2,
+    rad: f32,
+    length: f32,
+    ang: f32,
+    restitution_coef: f32,
+    friction_coef: f32,
+) -> Body {
     assert!(length > 0.0, "A capsule cannot have zero or negative length");
     assert!(rad > 0.0, "A capsule cannot have a null or negative radius");
+    assert!(
+        restitution_coef >= 0.0,
+        "Cannot implement a negative restitution coefficient"
+    );
+    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
     Body {
         pos,
         vel,
@@ -98,5 +157,9 @@ pub fn new_kinematic_capsule(pos: Vec2, vel: Vec2, rad: f32, length: f32, ang: f
         },
         is_hitbox: false,
         body_type: Kinematic,
+        restitution_coef,
+        friction_coef,
+        layer_bits: Layer::L0,
+        mask_bits: Layer::L0,
     }
 }

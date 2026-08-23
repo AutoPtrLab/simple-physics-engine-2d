@@ -1,4 +1,6 @@
-use crate::body_shapes::body::{Body, Shape};
+use std::cmp::min;
+
+use crate::body_shapes::body::{self, Body, Shape};
 use crate::math::Vec2;
 use crate::v2;
 
@@ -16,16 +18,26 @@ pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
     for i in 0..bodies.len() {
         for j in (i + 1)..bodies.len() {
             let (a, b) = bodies.split_at_mut(j);
+            //checking the layers
+            if (a[i].mask_bits & b[0].layer_bits) == 0 {
+                continue;
+            }
+            if (a[i].layer_bits & b[0].mask_bits) == 0 {
+                continue;
+            }
             if a[i].is_hitbox && b[0].is_hitbox {
                 //if the two bodies are hitbox we continue into the next iteration
                 continue;
             }
             if let Some(info) = check_collision(&a[i], &b[0]) {
-                apply_forces(&mut a[i], &mut b[0], info);
                 event_vec.push(CollisionEvent {
                     body_a_id: i,
                     body_b_id: j,
                 });
+                if !a[i].is_hitbox && !b[0].is_hitbox {
+                    //if neither of them is a hitbox(two real bodies) we apply the forces, else it just registers the collision
+                    apply_forces(&mut a[i], &mut b[0], info);
+                }
             }
         }
     }
@@ -34,8 +46,16 @@ pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
         for i in 0..bodies.len() {
             for j in (i + 1)..bodies.len() {
                 let (a, b) = bodies.split_at_mut(j);
-                if a[i].is_hitbox && b[0].is_hitbox {
-                    //if the two bodies are hitbox we continue into the next iteration
+
+                if a[i].is_hitbox || b[0].is_hitbox {
+                    //if either of the bodies is a hitbox there is no collision to resolve
+                    continue;
+                }
+                //checking the layers
+                if (a[i].mask_bits & b[0].layer_bits) == 0 {
+                    continue;
+                }
+                if (a[i].layer_bits & b[0].mask_bits) == 0 {
                     continue;
                 }
                 if let Some(info) = check_collision(&a[i], &b[0]) {
@@ -166,20 +186,83 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
         return; //two static objects
     }
     let collision_point = info.impact_point;
-
-    let rel_vel = body_a.vel - body_b.vel; //relative velocity of a respect to b
+    //
+    // vector from the position to the collision point
+    let r_a = collision_point - body_a.pos;
+    let r_b = collision_point - body_b.pos;
+    //we calculate the tangecial velocity of the point
+    //
+    let tangencial_a = v2!(-body_a.ang_vel * r_a.y, body_a.ang_vel * r_a.x);
+    let tangencial_b = v2!(-body_b.ang_vel * r_b.y, body_b.ang_vel * r_b.x);
+    let rel_vel = (body_a.vel + tangencial_a) - (body_b.vel + tangencial_b); //relative velocity of a respect to b , fix: comparing the point of collision and not the center to address the rotation
     let vel_along_normal = rel_vel.dot(info.n); //rel vel affecting the normal vector
-    if vel_along_normal <= 0.0 {
-        //if a is getting nearer to b we apply the impulse
-        let imp = (vel_along_normal * -2.0) / inv_mass_tot;
-        body_a.vel += info.n * imp * body_a.inv_mass;
-        body_b.vel -= info.n * imp * body_b.inv_mass;
-        if body_a.is_rotable() {
-            body_a.ang_vel += ((collision_point - body_a.pos).cross(info.n * imp)) * body_a.inv_inert;
-        }
-        if body_b.is_rotable() {
-            body_b.ang_vel += ((collision_point - body_b.pos).cross(-(info.n * imp))) * body_b.inv_inert;
-        }
+    if vel_along_normal > 0.0 {
+        //if the bodies are already separting
+        return;
+    }
+    //if a is getting nearer to b we apply the impulse
+    let ra_cross_n = r_a.cross(info.n);
+    let ra_cross_n = if ra_cross_n.abs() < 1e-4 { 0.0 } else { ra_cross_n };
+    let rb_cross_n = r_b.cross(info.n);
+    let rb_cross_n = if rb_cross_n.abs() < 1e-4 { 0.0 } else { rb_cross_n };
+    //println!("{}", ra_cross_n);
+    let inercial_resistance_a = (ra_cross_n * ra_cross_n) * body_a.inv_inert;
+    let inercial_resistance_b = (rb_cross_n * rb_cross_n) * body_b.inv_inert;
+
+    //if any of the components has more that one we pick the higher one , else we go for the lower
+    let restitution_coef = if body_a.restitution_coef > 1.0 || body_b.restitution_coef > 1.0 {
+        body_a.restitution_coef.max(body_b.restitution_coef)
+    } else {
+        body_a.restitution_coef.min(body_b.restitution_coef)
+    };
+
+    let imp =
+        (vel_along_normal * -(restitution_coef + 1.0)) / (inv_mass_tot + inercial_resistance_a + inercial_resistance_b);
+    body_a.vel += info.n * imp * body_a.inv_mass;
+    body_b.vel -= info.n * imp * body_b.inv_mass;
+
+    if body_a.is_rotable() {
+        body_a.ang_vel += ra_cross_n * imp * body_a.inv_inert;
+        //println!("{}", body_a.ang_vel);
+    }
+    if body_b.is_rotable() {
+        body_b.ang_vel -= rb_cross_n * imp * body_b.inv_inert;
+    }
+
+    //++++++++frition resolver++++++
+
+    //calculate the tangencial vector
+    //
+    let tangencial_a = v2!(-body_a.ang_vel * r_a.y, body_a.ang_vel * r_a.x);
+    let tangencial_b = v2!(-body_b.ang_vel * r_b.y, body_b.ang_vel * r_b.x);
+    let current_rel_vel = (body_a.vel + tangencial_a) - (body_b.vel + tangencial_b);
+    let mut tang_vec = current_rel_vel - (info.n * current_rel_vel.dot(info.n));
+    if tang_vec.length_squared() > 1e-4 {
+            tang_vec = tang_vec.normalize();
+    //friction component
+    let ra_cross_t = r_a.cross(tang_vec);
+    let rb_cross_t = r_b.cross(tang_vec);
+    let inercial_res_t_a = (ra_cross_t * ra_cross_t) * body_a.inv_inert;
+    let inercial_res_t_b = (rb_cross_t * rb_cross_t) * body_b.inv_inert;
+
+    let vel_along_tangent = current_rel_vel.dot(tang_vec);
+    let mut imp_fric = -vel_along_tangent / (inv_mass_tot + inercial_res_t_a + inercial_res_t_b);
+
+    let friction_coef = (body_a.friction_coef * body_b.friction_coef).sqrt();
+    let max_fric = imp.abs() * friction_coef;
+
+    imp_fric = imp_fric.clamp(-max_fric, max_fric);
+
+    let imp_vec = tang_vec*imp_fric;
+
+    body_a.vel += vector_impulso_t * body_a.inv_mass;
+    body_b.vel -= vector_impulso_t * body_b.inv_mass;
+
+    if body_a.is_rotable() {
+        body_a.ang_vel += ra_cross_t * imp_fric * body_a.inv_inert;
+    }
+    if body_b.is_rotable() {
+        body_b.ang_vel -= rb_cross_t * imp_fric * body_b.inv_inert;
     }
 }
 
@@ -240,7 +323,7 @@ fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option
     Some(CollisionInfo {
         n,
         depth: ideal_dist - dist,
-        impact_point: n * ra + a_pos,
+        impact_point: a_pos - n * ra,
     })
 }
 //only supporting AABB
@@ -492,7 +575,7 @@ fn collision_line_capsule(
     let denom = a * e - b * b;
     let mut s: f32;
     //epsilon
-    if denom.abs() > 0.1 {
+    if denom.abs() > 0.001 {
         s = ((c * e - b * f) / denom).clamp(0.0, 1.0);
     } else {
         //if they are paralel we pick the middle of the segments
