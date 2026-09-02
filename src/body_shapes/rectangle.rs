@@ -10,96 +10,74 @@
 use crate::body_shapes::body::BodyType::{Dynamic, Kinematic, Static};
 use crate::body_shapes::body::*;
 use crate::math::Vec2;
-///regular dynamic non rotbale rect
-pub fn new_rect(
-    pos: Vec2,
-    vel: Vec2,
-    width: f32,
-    height: f32,
-    mass: f32,
-    restitution_coef: f32,
-    friction_coef: f32,
-) -> Body {
-    assert!(mass > 0.0, "cannot make a null or negative mass rect");
-    assert!(width > 0.0, "cannot make a negative 2 width rect");
-    assert!(
-        restitution_coef >= 0.0,
-        "Cannot implement a negative restitution coefficient"
-    );
-    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
-    Body {
-        pos,
-        vel,
-        accel: Vec2::ZERO,
-        ang: 0.0,
-        ang_vel: 0.0,
-        inv_mass: 1.0 / mass,
-        inv_inert: 0.0,
-        shape: Shape::Rectangle { width, height },
-        is_hitbox: false,
-        body_type: Dynamic,
-        layer_bits: Layer::L0,
-        mask_bits: Layer::L0,
-        restitution_coef,
-        friction_coef,
+
+impl Body {
+    ///regular dynamic non rotbale rect
+    pub fn new_rect(pos: Vec2, vel: Vec2, width: f32, height: f32, mass: f32) -> Body {
+        assert!(mass > 0.0, "cannot make a null or negative mass rect");
+        assert!(width > 0.0, "cannot make a negative 2 width rect");
+
+        Body {
+            pos,
+            vel,
+            accel: Vec2::ZERO,
+            ang: 0.0,
+            ang_vel: 0.0,
+            inv_mass: 1.0 / mass,
+            inv_inert: 0.0,
+            shape: Shape::Rectangle { width, height },
+            is_hitbox: false,
+            body_type: Dynamic,
+            layer_bits: Layer::L0,
+            mask_bits: Layer::L0,
+            restitution_coef: 0.0,
+            friction_coef: 0.0,
+        }
     }
-}
-///Creates a kinematic non rotable kinematic rect
-pub fn new_kinematic_rect(
-    pos: Vec2,
-    vel: Vec2,
-    width: f32,
-    height: f32,
-    restitution_coef: f32,
-    friction_coef: f32,
-) -> Body {
-    assert!(width > 0.0, "cannot make a negative width rect");
-    assert!(height > 0.0, "cannot make a negative height rect");
-    assert!(
-        restitution_coef >= 0.0,
-        "Cannot implement a negative restitution coefficient"
-    );
-    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
-    Body {
-        pos,
-        vel,
-        accel: Vec2::ZERO,
-        ang: 0.0,
-        ang_vel: 0.0,
-        inv_mass: 0.0,
-        inv_inert: 0.0,
-        shape: Shape::Rectangle { width, height },
-        is_hitbox: false,
-        body_type: Kinematic,
-        restitution_coef,
-        friction_coef,
-        layer_bits: Layer::L0,
-        mask_bits: Layer::L0,
+
+    ///Creates a kinematic non rotable kinematic rect
+    pub fn new_kinematic_rect(pos: Vec2, vel: Vec2, width: f32, height: f32) -> Body {
+        assert!(width > 0.0, "cannot make a negative width rect");
+        assert!(height > 0.0, "cannot make a negative height rect");
+
+        Body {
+            pos,
+            vel,
+            accel: Vec2::ZERO,
+            ang: 0.0,
+            ang_vel: 0.0,
+            inv_mass: 0.0,
+            inv_inert: 0.0,
+            shape: Shape::Rectangle { width, height },
+            is_hitbox: false,
+            body_type: Kinematic,
+            restitution_coef: 0.0,
+            friction_coef: 0.0,
+            layer_bits: Layer::L0,
+            mask_bits: Layer::L0,
+        }
     }
-}
-///Creates a statuc rect
-pub fn new_static_rect(pos: Vec2, width: f32, height: f32, restitution_coef: f32, friction_coef: f32) -> Body {
-    assert!(width > 0.0, "cannot make a negative width rect");
-    assert!(height > 0.0, "cannot make a negative height rect");
-    assert!(
-        restitution_coef >= 0.0,
-        "Cannot implement a negative restitution coefficient"
-    );
-    assert!(friction_coef >= 0.0, "Cannot implement a negative friction coefficient");
-    Body {
-        pos,
-        vel: Vec2::ZERO,
-        accel: Vec2::ZERO,
-        ang: 0.0,
-        ang_vel: 0.0,
-        inv_mass: 0.0,
-        inv_inert: 0.0,
-        shape: Shape::Rectangle { width, height },
-        is_hitbox: false,
-        body_type: Static,
-        restitution_coef,
-        friction_coef,
-        layer_bits: Layer::L0,
-        mask_bits: Layer::L0,
+
+    ///Creates a static rect
+    pub fn new_static_rect(pos: Vec2, width: f32, height: f32) -> Body {
+        assert!(width > 0.0, "cannot make a negative width rect");
+        assert!(height > 0.0, "cannot make a negative height rect");
+
+        Body {
+            pos,
+            vel: Vec2::ZERO,
+            accel: Vec2::ZERO,
+            ang: 0.0,
+            ang_vel: 0.0,
+            inv_mass: 0.0,
+            inv_inert: 0.0,
+            shape: Shape::Rectangle { width, height },
+            is_hitbox: false,
+            body_type: Static,
+            restitution_coef: 0.0,
+            friction_coef: 0.0,
+            layer_bits: Layer::L0,
+            mask_bits: Layer::L0,
+        }
     }
 }

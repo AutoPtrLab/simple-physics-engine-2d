@@ -1,38 +1,40 @@
 use macroquad::math::Vec2 as MqVec2;
 use macroquad::prelude::*;
 use simple_physics_engine_2d::body_shapes::body::Layer;
+
+use simple_physics_engine_2d::collision_resolver::CollisionEvent;
 use simple_physics_engine_2d::prelude::Vec2;
 use simple_physics_engine_2d::prelude::*;
 
 #[macroquad::main("Simulation")]
 async fn main() {
     let mut bodies: Vec<Body> = vec![
-        new_rot_circle(v2!(700.0, 340.0), v2!(-400.0, -400.0), 10.0, 10.0, 1.0)
+        Body::new_rot_circle(v2!(700.0, 340.0), v2!(-400.0, -400.0), 10.0, 10.0)
             .with_layer_bit(Layer::L0)
             .with_hitbox(),
-        new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0, 0.5),
-        new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0, 0.5),
-        new_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 45.0, 0.5),
-        new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0, 0.5),
-        new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, -30.0, 0.5),
-        //new_line(v2!(0.0, 500.0), v2!(800.0, 500.0)),
+        Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
+        Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
+        Body::new_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 0.0),
+        Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
+        Body::new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 0.0),
+        Body::new_line(v2!(0.0, 500.0), v2!(800.0, 500.0)),
         // Incluso puedes meter el suelo aquí mismo
-        new_static_rect(v2!(0.0, 600.0), 1000.0, 10.0, 0.5),
+        Body::new_static_rect(v2!(0.0, 600.0), 1000.0, 10.0),
     ];
 
     for i in 0..8 {
-        bodies.push(new_rot_circle(
+        bodies.push(Body::new_rot_circle(
             v2!(700.0 + i as f32 * 10.0, 340.0),
             v2!(-400.0, -400.0),
             10.0,
             1.0,
-            3.0,
         ));
     }
     loop {
         let dt = get_frame_time().min(0.016);
         //println!("{}", bodies[].ang * 180.0 / 3.141592);
         clear_background(BLACK);
+
         for e in &mut bodies {
             match e.shape {
                 Shape::Circle { rad } => {
@@ -70,10 +72,10 @@ async fn main() {
         if is_key_down(KeyCode::Up) {
             bodies[0].vel.y = -200.0;
         }
-
+        let mut vec: Vec<CollisionEvent> = Vec::new();
         update_movement(&mut bodies, dt, v2!(0.0, 90.0), 0.99, 0.95);
-        let v = update_collisions(&mut bodies);
-        for c in v {
+        update_collisions(&mut bodies, &mut vec);
+        for c in vec {
             //  println!("{},{}", c.body_a_id, c.body_b_id);
         }
         bodies[0].vel = Vec2::ZERO;

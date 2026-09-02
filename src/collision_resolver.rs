@@ -1,3 +1,4 @@
+use std::arch::x86_64::_MM_FROUND_CEIL;
 use std::cmp::min;
 
 use crate::body_shapes::body::{self, Body, Shape};
@@ -12,9 +13,9 @@ pub struct CollisionEvent {
 
 ///Checks the collisions and returns the info needed to calculate the response, if any of the bodies is a hitbox its just checks if they have collided and
 /// returns the index in the slice of all the collisions, two hitbox CANNOT collide
-pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
+pub fn update_collisions(bodies: &mut [Body], event_vec: &mut Vec<CollisionEvent>) {
     //we create the collision event Vec
-    let mut event_vec: Vec<CollisionEvent> = vec![];
+
     for i in 0..bodies.len() {
         for j in (i + 1)..bodies.len() {
             let (a, b) = bodies.split_at_mut(j);
@@ -64,10 +65,9 @@ pub fn update_collisions(bodies: &mut [Body]) -> Vec<CollisionEvent> {
             }
         }
     }
-    event_vec
 }
 
-fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
+pub fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
     match (a.shape, b.shape) {
         // --- CIRCLE VS ALL ---
         (Shape::Circle { rad: rad_a }, Shape::Circle { rad: rad_b }) =>
@@ -232,37 +232,39 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
     //++++++++frition resolver++++++
 
     //calculate the tangencial vector
-    //
+
     let tangencial_a = v2!(-body_a.ang_vel * r_a.y, body_a.ang_vel * r_a.x);
     let tangencial_b = v2!(-body_b.ang_vel * r_b.y, body_b.ang_vel * r_b.x);
     let current_rel_vel = (body_a.vel + tangencial_a) - (body_b.vel + tangencial_b);
+
     let mut tang_vec = current_rel_vel - (info.n * current_rel_vel.dot(info.n));
-    if tang_vec.length_squared() > 1e-4 {
-            tang_vec = tang_vec.normalize();
-    //friction component
-    let ra_cross_t = r_a.cross(tang_vec);
-    let rb_cross_t = r_b.cross(tang_vec);
-    let inercial_res_t_a = (ra_cross_t * ra_cross_t) * body_a.inv_inert;
-    let inercial_res_t_b = (rb_cross_t * rb_cross_t) * body_b.inv_inert;
+    if tang_vec.len_sq() > 1e-4 {
+        tang_vec = tang_vec.normalize();
+        //friction component
+        let ra_cross_t = r_a.cross(tang_vec);
+        let rb_cross_t = r_b.cross(tang_vec);
+        let inercial_res_t_a = (ra_cross_t * ra_cross_t) * body_a.inv_inert;
+        let inercial_res_t_b = (rb_cross_t * rb_cross_t) * body_b.inv_inert;
 
-    let vel_along_tangent = current_rel_vel.dot(tang_vec);
-    let mut imp_fric = -vel_along_tangent / (inv_mass_tot + inercial_res_t_a + inercial_res_t_b);
+        let vel_along_tangent = current_rel_vel.dot(tang_vec);
+        let mut imp_fric = -vel_along_tangent / (inv_mass_tot + inercial_res_t_a + inercial_res_t_b);
 
-    let friction_coef = (body_a.friction_coef * body_b.friction_coef).sqrt();
-    let max_fric = imp.abs() * friction_coef;
+        let friction_coef = (body_a.friction_coef * body_b.friction_coef).sqrt();
+        let max_fric = imp.abs() * friction_coef;
 
-    imp_fric = imp_fric.clamp(-max_fric, max_fric);
+        imp_fric = imp_fric.clamp(-max_fric, max_fric);
 
-    let imp_vec = tang_vec*imp_fric;
+        let imp_vec = tang_vec * imp_fric;
 
-    body_a.vel += vector_impulso_t * body_a.inv_mass;
-    body_b.vel -= vector_impulso_t * body_b.inv_mass;
+        body_a.vel += imp_vec * body_a.inv_mass;
+        body_b.vel -= imp_vec * body_b.inv_mass;
 
-    if body_a.is_rotable() {
-        body_a.ang_vel += ra_cross_t * imp_fric * body_a.inv_inert;
-    }
-    if body_b.is_rotable() {
-        body_b.ang_vel -= rb_cross_t * imp_fric * body_b.inv_inert;
+        if body_a.is_rotable() {
+            body_a.ang_vel += ra_cross_t * imp_fric * body_a.inv_inert;
+        }
+        if body_b.is_rotable() {
+            body_b.ang_vel -= rb_cross_t * imp_fric * body_b.inv_inert;
+        }
     }
 }
 
@@ -270,7 +272,7 @@ fn apply_forces(body_a: &mut Body, body_b: &mut Body, info: CollisionInfo) {
 // COLLIDER FUNCTIONS FUNCTIONS
 // ------------------------------------------
 #[derive(Clone, Copy)]
-struct CollisionInfo {
+pub struct CollisionInfo {
     n: Vec2,            //Perpendicular vector to the surface
     depth: f32,         //distance the bodies has entered each other in the n vector direction
     impact_point: Vec2, //point where the two bodies collided

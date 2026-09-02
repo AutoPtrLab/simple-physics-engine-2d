@@ -1,8 +1,8 @@
 pub mod body_shapes;
 pub mod collision_resolver;
+pub mod contain_funcs;
 pub mod math;
 pub mod movement_systems;
-
 //prelude pattern
 pub mod prelude {
     //math

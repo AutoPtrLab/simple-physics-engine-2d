@@ -1,4 +1,7 @@
-use crate::math::Vec2;
+use crate::{
+    body_shapes::body::{BodyType::Static, Layer::L1},
+    math::Vec2,
+};
 
 ///enum representing each shape, each field holding its own data
 #[derive(Debug, Clone, Copy)]
@@ -41,7 +44,7 @@ pub mod Layer {
 }
 
 ///Representation of every rigid body
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Body {
     //Cinematic linear vars
     pub pos: Vec2,
@@ -59,8 +62,8 @@ pub struct Body {
     pub is_hitbox: bool,
     pub body_type: BodyType,
 
-    pub restitution_coef: f32, // restitution coefficient to address how the collision happens, its value usually goes between 0 and 1.0,althougth you can go over 1 to make the collision gain energy
-    pub friction_coef: f32, //frition coefficient to address how is the surface of the material , this cannot   be negative and when two objetct colide we calculate the geometrical median
+    pub(crate) restitution_coef: f32, // restitution coefficient to address how the collision happens, its value usually goes between 0 and 1.0,althougth you can go over 1 to make the collision gain energy
+    pub(crate) friction_coef: f32, //frition coefficient to address how is the surface of the material , this cannot   be negative and when two objetct colide we calculate the geometrical median
     ///bit mask representing what kind of object you are or in which layer you live in, default is L0
     pub layer_bits: u16,
     /// bit mask representing with which other kinds of bodies you can interact,default is L0
@@ -68,6 +71,25 @@ pub struct Body {
 }
 
 impl Body {
+    // This servers as a default constructor
+    // pub fn base(shape: Shape, pos: Vec2) -> Self {
+    //     Self {
+    //         pos,
+    //         vel: Vec2::ZERO,
+    //         accel: Vec2::ZERO,
+    //         ang: 0.0,
+    //         ang_vel: 0.0,
+    //         inv_mass: 0.0,
+    //         inv_inert: 0.0,
+    //         shape,
+    //         is_hitbox: false,
+    //         body_type: BodyType::Static,
+    //         restitution_coef: 0.0,
+    //         friction_coef: 0.0,
+    //         layer_bits: Layer::L0,
+    //         mask_bits: Layer::L0,
+    //     }
+
     #[inline]
     pub fn is_rotable(&self) -> bool {
         self.inv_inert != 0.0
@@ -123,8 +145,30 @@ impl Body {
         self.layer_bits = layer;
     }
     #[inline]
-    //adds a new bit mask not replcing the existing ones
+    ///adds a new bit mask not replcing the existing ones
     pub fn add_mask_bits(&mut self, mask: u16) {
         self.mask_bits |= mask;
+    }
+    ///builder pattron with the restitution coefficient
+    pub fn with_restitution(mut self, rest_coef: f32) -> Self {
+        assert!(rest_coef >= 0.0);
+        self.restitution_coef = rest_coef;
+        self
+    }
+    ///builder pattron with the friction coefficient
+    pub fn with_friction(mut self, frict_coef: f32) -> Self {
+        assert!(frict_coef >= 0.0);
+        self.friction_coef = frict_coef;
+        self
+    }
+    //setter for the friction
+    pub fn set_friction(&mut self, new_frict: f32) {
+        assert!(new_frict >= 0.0);
+        self.friction_coef = new_frict;
+    }
+
+    pub fn set_restitution(&mut self, new_rest: f32) {
+        assert!(new_rest >= 0.0);
+        self.restitution_coef = new_rest;
     }
 }
