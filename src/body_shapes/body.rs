@@ -19,7 +19,7 @@ pub enum BodyType {
     ///Can be moved but only if the user wants mass= inf
     Kinematic,
     ///regular dynamic object, even a hitbox gets affected by external forces(gravity, wind ...)
-    Dynamic,
+    Dynamic { gravity_scale: f32 },
 }
 ///constants representing a binary number layer for easier use of the mask and layer u16
 #[allow(non_snake_case)]
@@ -62,8 +62,8 @@ pub struct Body {
     pub is_hitbox: bool,
     pub body_type: BodyType,
 
-    pub(crate) restitution_coef: f32, // restitution coefficient to address how the collision happens, its value usually goes between 0 and 1.0,althougth you can go over 1 to make the collision gain energy
-    pub(crate) friction_coef: f32, //frition coefficient to address how is the surface of the material , this cannot   be negative and when two objetct colide we calculate the geometrical median
+    pub restitution_coef: f32, // restitution coefficient to address how the collision happens, its value usually goes between 0 and 1.0,althougth you can go over 1 to make the collision gain energy
+    pub friction_coef: f32, //frition coefficient to address how is the surface of the material , this cannot   be negative and when two objetct colide we calculate the geometrical median
     ///bit mask representing what kind of object you are or in which layer you live in, default is L0
     pub layer_bits: u16,
     /// bit mask representing with which other kinds of bodies you can interact,default is L0
@@ -100,7 +100,7 @@ impl Body {
     }
     #[inline]
     pub fn is_dynamic(&self) -> bool {
-        self.body_type == BodyType::Dynamic
+        matches!(self.body_type, BodyType::Dynamic { gravity_scale })
     }
     #[inline]
     pub fn is_kinematic(&self) -> bool {
@@ -149,13 +149,13 @@ impl Body {
     pub fn add_mask_bits(&mut self, mask: u16) {
         self.mask_bits |= mask;
     }
-    ///builder pattron with the restitution coefficient
+    ///builder pattern with the restitution coefficient
     pub fn with_restitution(mut self, rest_coef: f32) -> Self {
         assert!(rest_coef >= 0.0);
         self.restitution_coef = rest_coef;
         self
     }
-    ///builder pattron with the friction coefficient
+    ///builder pattern with the friction coefficient
     pub fn with_friction(mut self, frict_coef: f32) -> Self {
         assert!(frict_coef >= 0.0);
         self.friction_coef = frict_coef;
@@ -170,5 +170,18 @@ impl Body {
     pub fn set_restitution(&mut self, new_rest: f32) {
         assert!(new_rest >= 0.0);
         self.restitution_coef = new_rest;
+    }
+    /// builder for the gravity_scale, panics if the body is not Dynamic
+    pub fn with_gravity_scale(mut self, new_grav_scale: f32) -> Self {
+        self.set_gravity_scale(new_grav_scale);
+        self
+    }
+    /// sets the new gravity check , if the body is not Dynamic it panics
+    pub fn set_gravity_scale(&mut self, new_grav_scale: f32) {
+        if let BodyType::Dynamic { gravity_scale } = &mut self.body_type {
+            *gravity_scale = new_grav_scale;
+        } else {
+            panic!("cannot change the gravity factor of a Static or Kinetic body");
+        }
     }
 }

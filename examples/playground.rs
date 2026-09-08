@@ -9,12 +9,10 @@ use simple_physics_engine_2d::prelude::*;
 #[macroquad::main("Simulation")]
 async fn main() {
     let mut bodies: Vec<Body> = vec![
-        Body::new_rot_circle(v2!(700.0, 340.0), v2!(-400.0, -400.0), 10.0, 10.0)
-            .with_layer_bit(Layer::L0)
-            .with_hitbox(),
+        Body::new_rot_circle(v2!(700.0, 340.0), v2!(-400.0, -400.0), 10.0, 10.0).with_layer_bit(Layer::L0),
         Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
         Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
-        Body::new_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 0.0),
+        Body::new_rot_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 0.0),
         Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
         Body::new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 0.0),
         Body::new_line(v2!(0.0, 500.0), v2!(800.0, 500.0)),

@@ -27,7 +27,7 @@ impl Body {
             inv_inert: 0.0,
             shape: Shape::Rectangle { width, height },
             is_hitbox: false,
-            body_type: Dynamic,
+            body_type: Dynamic { gravity_scale: 1.0 },
             layer_bits: Layer::L0,
             mask_bits: Layer::L0,
             restitution_coef: 0.0,

@@ -1,4 +1,5 @@
 use crate::body_shapes::body::Body;
+use crate::body_shapes::body::BodyType;
 use crate::math::Vec2;
 use std::f32::consts::TAU;
 ///Cinematic update of the bodies (the frictions represent how much velocity the body KEEPS, but not the real body-body friction), a Dynamic body gets affected by kinematics(vel, accel ) and external forces,
@@ -10,8 +11,8 @@ pub fn update_movement(bodies: &mut [Body], dt: f32, grav: Vec2, linear_frict: f
         if b.is_static() {
             continue;
         }
-        if b.is_dynamic() {
-            b.vel += (b.accel + grav) * dt;
+        if let BodyType::Dynamic { gravity_scale } = b.body_type {
+            b.vel += (b.accel + grav * gravity_scale) * dt;
             b.vel *= 1.0 - linear_frict * dt;
             b.ang_vel *= 1.0 - ang_frict * dt;
         }

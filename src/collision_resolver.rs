@@ -1,6 +1,3 @@
-use std::arch::x86_64::_MM_FROUND_CEIL;
-use std::cmp::min;
-
 use crate::body_shapes::body::{self, Body, Shape};
 use crate::math::Vec2;
 use crate::v2;
@@ -9,12 +6,55 @@ use crate::v2;
 pub struct CollisionEvent {
     pub body_a_id: usize,
     pub body_b_id: usize,
+    pub impact_force: f32, //is the relative velocity of the two bodies
 }
 
+//private struct defining the AABBs that wraps the bodies, its position are the top_left and bottom right corner, plus the id of the bodie it represent
+#[derive(Clone, Copy)]
+struct AABB {
+    top_left: Vec2,
+    buttom_right: Vec2,
+}
+impl AABB {
+    //check if two AABB collide
+    #[inline]
+    pub fn collide(a: AABB, b: AABB) -> bool {
+        (a.top_left.x <= b.buttom_right.x)
+            & (a.top_left.y <= b.buttom_right.y)
+            & (b.top_left.x <= a.buttom_right.x)
+            & (b.top_left.y <= a.buttom_right.y)
+    }
+}
+fn aabb_from_shape(pos: Vec2, shape: Shape) -> AABB {
+    match shape {
+        Shape::Capsule { rad, half_len } => AABB {
+            top_left: v2!(pos.x - rad - half_len, pos.y - rad - half_len),
+            buttom_right: v2!(pos.x + rad + half_len, pos.y + rad + half_len),
+        },
+        Shape::Circle { rad } => AABB {
+            top_left: v2!(pos.x - rad, pos.y - rad),
+            buttom_right: v2!(pos.x + rad, pos.y + rad),
+        },
+        Shape::Line { p } => AABB {
+            top_left: v2!(pos.x.min(p.x), pos.y.min(p.y)),
+            buttom_right: v2!(pos.x.max(p.x), pos.y.max(p.y)),
+        },
+        //review this conversion cause is clearly not optimal
+        Shape::Rectangle { width, height } => AABB {
+            top_left: v2!(pos.x - width, pos.y - height),
+            buttom_right: v2!(pos.x + width, pos.y + height),
+        },
+    }
+}
 ///Checks the collisions and returns the info needed to calculate the response, if any of the bodies is a hitbox its just checks if they have collided and
 /// returns the index in the slice of all the collisions, two hitbox CANNOT collide
 pub fn update_collisions(bodies: &mut [Body], event_vec: &mut Vec<CollisionEvent>) {
-    //we create the collision event Vec
+    let mut aabb_vec = Vec::<AABB>::with_capacity(bodies.len());
+
+    //forming the AABB
+    for b in bodies.iter() {
+        aabb_vec.push(aabb_from_shape(b.pos, b.shape));
+    }
 
     for i in 0..bodies.len() {
         for j in (i + 1)..bodies.len() {
@@ -30,10 +70,21 @@ pub fn update_collisions(bodies: &mut [Body], event_vec: &mut Vec<CollisionEvent
                 //if the two bodies are hitbox we continue into the next iteration
                 continue;
             }
+
+            //broad phase , we check if the AABB wrapping the bodies is colliding
+
+            if !AABB::collide(aabb_vec[i], aabb_vec[j]) {
+                continue;
+            };
+
+            //narrow phase
             if let Some(info) = check_collision(&a[i], &b[0]) {
+                let rel_vel = a[i].vel - b[0].vel;
+                let closing_speed = rel_vel.dot(info.n); // if this is negative they are getting closer
                 event_vec.push(CollisionEvent {
                     body_a_id: i,
                     body_b_id: j,
+                    impact_force: if closing_speed < 0.0 { -closing_speed } else { 0.0 },
                 });
                 if !a[i].is_hitbox && !b[0].is_hitbox {
                     //if neither of them is a hitbox(two real bodies) we apply the forces, else it just registers the collision
@@ -329,7 +380,7 @@ fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option
     })
 }
 //only supporting AABB
-fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h_b: f32) -> Option<CollisionInfo> {
+pub fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h_b: f32) -> Option<CollisionInfo> {
     let x_a = a_pos.x - w_a * 0.5;
     let y_a = a_pos.y - h_a * 0.5;
     let x_b = b_pos.x - w_b * 0.5;

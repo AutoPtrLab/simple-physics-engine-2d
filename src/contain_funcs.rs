@@ -1,7 +1,9 @@
+use crate::body_shapes::body::Shape;
 /// this file holds the helper if you need  to now if a body contains another body . they just return a boolean if the body contains the other one, if
 /// the container is contained in the  body is going to be false, is onlyb true if the container body contains the other body
 use crate::math::Vec2;
 use crate::v2;
+
 //circle that contains another circle, checks if b is contained in a(NOT in reverse)
 pub fn circ_contains_circ(a_pos: Vec2, a_rad: f32, b_pos: Vec2, b_rad: f32) -> bool {
     // if the b circle is bigger is imposible to be contain in a
@@ -45,7 +47,7 @@ pub fn circ_contains_point(circ_pos: Vec2, rad: f32, point: Vec2) -> bool {
     dist_sq < (rad * rad)
 }
 /// checks if the a  contains  the b rect (only AABB rectagles)
-pub fn rect_cotains_rect(a_pos: Vec2, a_w: f32, a_h: f32, b_pos: Vec2, b_w: f32, b_h: f32) -> bool {
+pub fn rect_contains_rect(a_pos: Vec2, a_w: f32, a_h: f32, b_pos: Vec2, b_w: f32, b_h: f32) -> bool {
     let b_half_w = b_w / 2.0;
     let b_half_h = b_h / 2.0;
     let left_up_corner = v2!(b_pos.x - b_half_w, b_pos.y - b_half_h);
@@ -84,4 +86,19 @@ pub fn rect_contains_circle(rect_pos: Vec2, width: f32, height: f32, circ_pos: V
         && top_left.x + width > circ_pos.x + rad
         && top_left.y < circ_pos.y - rad
         && top_left.y + height > circ_pos.y + rad
+}
+
+pub fn capsule_contains_point(cap_pos: Vec2, half_len: f32, rad: f32, ang: f32, point: Vec2) -> bool {
+    //try to find the nearest point in the capsule line
+
+    let cap_point_vec = point - cap_pos;
+    let line_vec = v2!(ang.cos(), ang.sin());
+    let proy = cap_point_vec.dot(line_vec);
+
+    if proy.abs() > half_len {
+        return false;
+    }
+    let nearest_line_point = cap_pos + line_vec * proy;
+
+    circ_contains_point(nearest_line_point, rad, point)
 }

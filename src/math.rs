@@ -177,7 +177,7 @@ impl Vec2 {
         (self.x * self.x + self.y * self.y).sqrt()
     }
 
-    /// returns a normalized vector of self but keeping the og vector untouched
+    /// returns a normalize vector consuming the input vector
     pub fn normalize(self) -> Self {
         let length = self.len();
         if length == 0.0f32 {
