@@ -49,7 +49,8 @@ pub struct Body {
     //Cinematic linear vars
     pub pos: Vec2,
     pub vel: Vec2,
-    pub accel: Vec2,
+    //impulse summatory
+    pub tot_impulse: Vec2, // the directional impulse, this is going to multiply with the mass inverse to get a new velocity to add to the current one(only LINEAR)
     //Cinematic rotacional vars (they are scalars beacuse they are always referencing the z axis)
     pub ang: f32,     //radians, is clockwise
     pub ang_vel: f32, //angular velocity rad/s
@@ -183,5 +184,8 @@ impl Body {
         } else {
             panic!("cannot change the gravity factor of a Static or Kinetic body");
         }
+    }
+    pub fn add_impulse(&mut self, adding_impulse: Vec2) {
+        self.tot_impulse += adding_impulse;
     }
 }

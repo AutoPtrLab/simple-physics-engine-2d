@@ -12,7 +12,11 @@ pub fn update_movement(bodies: &mut [Body], dt: f32, grav: Vec2, linear_frict: f
             continue;
         }
         if let BodyType::Dynamic { gravity_scale } = b.body_type {
-            b.vel += (b.accel + grav * gravity_scale) * dt;
+            //apply the acummulated directional impulse
+
+            b.vel += b.tot_impulse * b.inv_mass;
+            b.tot_impulse = Vec2::ZERO;
+            b.vel += (grav * gravity_scale) * dt;
             b.vel *= 1.0 - linear_frict * dt;
             b.ang_vel *= 1.0 - ang_frict * dt;
         }
@@ -20,7 +24,6 @@ pub fn update_movement(bodies: &mut [Body], dt: f32, grav: Vec2, linear_frict: f
         b.pos += b.vel * dt;
         b.ang += b.ang_vel * dt;
         b.ang = b.ang.rem_euclid(TAU);
-        b.accel = Vec2::ZERO;
 
         // if b.vel.len_sq() < 25.0 {
         //     b.vel = Vec2::ZERO;

@@ -20,7 +20,7 @@ impl Body {
         Body {
             pos,
             vel,
-            accel: Vec2::ZERO,
+            tot_impulse: Vec2::ZERO,
             ang: 0.0,
             ang_vel: 0.0,
             inv_mass: 1.0 / mass,
@@ -43,7 +43,7 @@ impl Body {
         Body {
             pos,
             vel,
-            accel: Vec2::ZERO,
+            tot_impulse: Vec2::ZERO,
             ang: 0.0,
             ang_vel: 0.0,
             inv_mass: 0.0,
@@ -66,7 +66,7 @@ impl Body {
         Body {
             pos,
             vel: Vec2::ZERO,
-            accel: Vec2::ZERO,
+            tot_impulse: Vec2::ZERO,
             ang: 0.0,
             ang_vel: 0.0,
             inv_mass: 0.0,
