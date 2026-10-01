@@ -48,8 +48,8 @@ pub fn circ_contains_point(circ_pos: Vec2, rad: f32, point: Vec2) -> bool {
 }
 /// checks if the a  contains  the b rect (only AABB rectagles)
 pub fn rect_contains_rect(a_pos: Vec2, a_w: f32, a_h: f32, b_pos: Vec2, b_w: f32, b_h: f32) -> bool {
-    let b_half_w = b_w / 2.0;
-    let b_half_h = b_h / 2.0;
+    let b_half_w = b_w * 0.5;
+    let b_half_h = b_h * 0.5;
     let left_up_corner = v2!(b_pos.x - b_half_w, b_pos.y - b_half_h);
     let left_down_corner = v2!(b_pos.x - b_half_w, b_pos.y + b_half_h);
     let right_up_corner = v2!(b_pos.x + b_half_w, b_pos.y - b_half_h);

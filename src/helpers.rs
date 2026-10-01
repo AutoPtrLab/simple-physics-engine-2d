@@ -11,7 +11,10 @@ use crate::v2;
 pub fn get_shape_points<const N: usize>(pos: Vec2, shape: Shape, ang: Option<f32>) -> [Vec2; N] {
     match shape {
         Shape::Circle { rad } => get_circle_points(pos, rad),
-        Shape::Rectangle { width, height } => get_rect_points(pos, width, height),
+        Shape::Rectangle {
+            half_width,
+            half_height,
+        } => get_rect_points(pos, half_width, half_height),
         Shape::Line { p } => get_line_points(pos, p),
         Shape::Capsule { rad, half_len } => get_capsule_points(
             pos,
@@ -36,11 +39,10 @@ pub fn get_circle_points<const N: usize>(pos: Vec2, rad: f32) -> [Vec2; N] {
     })
 }
 ///this functinos need at least N to be 4
-pub fn get_rect_points<const N: usize>(pos: Vec2, w: f32, h: f32) -> [Vec2; N] {
-    let half_w = w / 2.0;
-    let half_h = h / 2.0;
+pub fn get_rect_points<const N: usize>(pos: Vec2, half_w: f32, half_h: f32) -> [Vec2; N] {
     const { assert!(N >= 4, "THE MINIMUM POINTS TO DESCRIBE A Rectangle IS 4") };
-
+    let w = half_w * 2.0;
+    let h = half_h * 2.0;
     let n = const { N / 4 };
     let mut particions = [n; 4];
 

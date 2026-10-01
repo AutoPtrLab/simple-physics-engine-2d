@@ -37,6 +37,7 @@ impl Body {
             friction_coef: 0.0,
             layer_bits: Layer::L0,
             mask_bits: Layer::L0,
+            user_data: 0,
         }
     }
 
@@ -70,6 +71,7 @@ impl Body {
             friction_coef: 0.0,
             layer_bits: Layer::L0,
             mask_bits: Layer::L0,
+            user_data: 0,
         }
     }
 
@@ -96,6 +98,7 @@ impl Body {
             friction_coef: 0.0,
             layer_bits: Layer::L0,
             mask_bits: Layer::L0,
+            user_data: 0,
         }
     }
 
@@ -119,6 +122,7 @@ impl Body {
             is_hitbox: false,
             body_type: Kinematic,
             restitution_coef: 0.0,
+            user_data: 0,
             friction_coef: 0.0,
             layer_bits: Layer::L0,
             mask_bits: Layer::L0,

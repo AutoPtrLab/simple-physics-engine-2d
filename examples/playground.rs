@@ -14,20 +14,20 @@ async fn main() {
         Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
         Body::new_rot_capsule(v2!(0.0, 340.0), v2!(0.0, 200.0), 20.0, 300.0, 10.0, 0.0),
         Body::new_rect(v2!(300.0, 100.0), v2!(0.0, 0.0), 100.0, 50.0, 10.0),
-        Body::new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 0.0),
+        Body::new_rot_capsule(v2!(200.0, 340.0), v2!(0.0, 200.0), 20.0, 100.0, 10.0, 45.0),
         Body::new_line(v2!(0.0, 500.0), v2!(800.0, 500.0)),
         // Incluso puedes meter el suelo aquí mismo
         Body::new_static_rect(v2!(0.0, 600.0), 1000.0, 10.0),
     ];
-
-    for i in 0..8 {
-        bodies.push(Body::new_rot_circle(
-            v2!(700.0 + i as f32 * 10.0, 340.0),
-            v2!(-400.0, -400.0),
-            10.0,
-            1.0,
-        ));
-    }
+    bodies[1].ang_vel = -10.0;
+    // for i in 0..8 {
+    //     bodies.push(Body::new_rot_circle(
+    //         v2!(700.0 + i as f32 * 10.0, 340.0),
+    //         v2!(-400.0, -400.0),
+    //         10.0,
+    //         1.0,
+    //     ));
+    // }
     loop {
         let dt = get_frame_time().min(0.016);
         //println!("{}", bodies[].ang * 180.0 / 3.141592);
@@ -39,8 +39,17 @@ async fn main() {
                     //println!("{:?}+{:?}", e.pos.x, e.pos.y);
                     draw_circle(e.pos.x, e.pos.y, rad, VIOLET);
                 }
-                Shape::Rectangle { width, height } => {
-                    draw_rectangle(e.pos.x - width * 0.5, e.pos.y - height * 0.5, width, height, RED);
+                Shape::Rectangle {
+                    half_width,
+                    half_height,
+                } => {
+                    draw_rectangle(
+                        e.pos.x - half_width,
+                        e.pos.y - half_height,
+                        half_width * 2.0,
+                        half_height * 2.0,
+                        RED,
+                    );
                 }
 
                 Shape::Line { p } => {

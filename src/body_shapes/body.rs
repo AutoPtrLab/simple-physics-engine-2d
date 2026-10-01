@@ -1,15 +1,12 @@
-use crate::{
-    body_shapes::body::{BodyType::Static, Layer::L1},
-    math::Vec2,
-};
+use crate::math::Vec2;
 
 ///enum representing each shape, each field holding its own data
 #[derive(Debug, Clone, Copy)]
 pub enum Shape {
     Circle { rad: f32 },
-    Rectangle { width: f32, height: f32 }, //the coords of the rect are in the center of gravity
-    Line { p: Vec2 },                      //this is the second point of the line ,being the pos the first one
-    Capsule { rad: f32, half_len: f32 },   //
+    Rectangle { half_width: f32, half_height: f32 }, //the coords of the rect are in the center of gravity
+    Line { p: Vec2 },                                //this is the second point of the line ,being the pos the first one
+    Capsule { rad: f32, half_len: f32 },             //
 }
 ///enum representing the behaviour of the body, is the Body is a hitbox this regulates how the hitbox behaves when external forces apply
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -69,6 +66,8 @@ pub struct Body {
     pub layer_bits: u16,
     /// bit mask representing with which other kinds of bodies you can interact,default is L0
     pub mask_bits: u16,
+
+    pub user_data: u128, //custom data of the user
 }
 
 impl Body {
@@ -187,5 +186,10 @@ impl Body {
     }
     pub fn add_impulse(&mut self, adding_impulse: Vec2) {
         self.tot_impulse += adding_impulse;
+    }
+    ///constructor pattern where the user can add an u64
+    pub fn with_data(mut self, data: u128) -> Self {
+        self.user_data = data;
+        self
     }
 }

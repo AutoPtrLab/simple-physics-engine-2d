@@ -40,9 +40,12 @@ fn aabb_from_shape(pos: Vec2, shape: Shape) -> AABB {
             buttom_right: v2!(pos.x.max(p.x), pos.y.max(p.y)),
         },
         //review this conversion cause is clearly not optimal
-        Shape::Rectangle { width, height } => AABB {
-            top_left: v2!(pos.x - width, pos.y - height),
-            buttom_right: v2!(pos.x + width, pos.y + height),
+        Shape::Rectangle {
+            half_width,
+            half_height,
+        } => AABB {
+            top_left: v2!(pos.x - half_width, pos.y - half_height),
+            buttom_right: v2!(pos.x + half_width, pos.y + half_height),
         },
     }
 }
@@ -127,9 +130,13 @@ pub fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
             collision_circle_circle(a.pos, rad_a, b.pos, rad_b)
         }
 
-        (Shape::Circle { rad }, Shape::Rectangle { width, height }) => {
-            collision_circle_rect(a.pos, rad, b.pos, width, height)
-        }
+        (
+            Shape::Circle { rad },
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+        ) => collision_circle_rect(a.pos, rad, b.pos, half_width, half_height),
 
         (Shape::Circle { rad }, Shape::Line { p }) => collision_circle_line(a.pos, rad, b.pos, p),
         //circle vs capsule
@@ -138,34 +145,52 @@ pub fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
         }
         (
             Shape::Rectangle {
-                width: w_a,
-                height: h_a,
+                half_width: w_a,
+                half_height: h_a,
             },
             Shape::Rectangle {
-                width: w_b,
-                height: h_b,
+                half_width: w_b,
+                half_height: h_b,
             },
         ) => {
             // Your Rectangle vs Rectangle function
             collision_rect_rect(a.pos, w_a, h_a, b.pos, w_b, h_b)
         }
-        (Shape::Rectangle { width, height }, Shape::Circle { rad }) => {
+        (
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+            Shape::Circle { rad },
+        ) => {
             //  Rectangle vs Circle function , need to be inverted
-            collision_circle_rect(b.pos, rad, a.pos, width, height).map(|info| CollisionInfo {
+            collision_circle_rect(b.pos, rad, a.pos, half_width, half_height).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
                 impact_point: info.impact_point,
             })
         }
 
-        (Shape::Rectangle { width, height }, Shape::Line { p }) => collision_rect_line(a.pos, width, height, b.pos, p),
-        (Shape::Rectangle { width, height }, Shape::Capsule { rad, half_len }) => {
-            collision_rect_capsule(a.pos, width, height, b.pos, rad, half_len, b.ang).map(|info| CollisionInfo {
+        (
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+            Shape::Line { p },
+        ) => collision_rect_line(a.pos, half_width, half_height, b.pos, p),
+        (
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+            Shape::Capsule { rad, half_len },
+        ) => collision_rect_capsule(a.pos, half_width, half_height, b.pos, rad, half_len, b.ang).map(|info| {
+            CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
                 impact_point: info.impact_point,
-            })
-        }
+            }
+        }),
         // --- LINE VS ALL ---
         (Shape::Line { p: _p1_a }, Shape::Line { p: _p1_b }) => None,
         (Shape::Line { p }, Shape::Circle { rad }) => {
@@ -175,9 +200,15 @@ pub fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
                 impact_point: info.impact_point,
             })
         }
-        (Shape::Line { p }, Shape::Rectangle { width, height }) => {
+        (
+            Shape::Line { p },
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+        ) => {
             // Your Line vs Rectangle function (you can call the inverse)
-            collision_rect_line(b.pos, width, height, a.pos, p).map(|info| CollisionInfo {
+            collision_rect_line(b.pos, half_width, half_height, a.pos, p).map(|info| CollisionInfo {
                 n: -info.n,
                 depth: info.depth,
                 impact_point: info.impact_point,
@@ -200,9 +231,13 @@ pub fn check_collision(a: &Body, b: &Body) -> Option<CollisionInfo> {
         (Shape::Capsule { rad, half_len }, Shape::Line { p: line_p }) => {
             collision_line_capsule(b.pos, line_p, a.pos, half_len, rad, a.ang)
         }
-        (Shape::Capsule { rad, half_len }, Shape::Rectangle { width, height }) => {
-            collision_rect_capsule(b.pos, width, height, a.pos, rad, half_len, a.ang)
-        }
+        (
+            Shape::Capsule { rad, half_len },
+            Shape::Rectangle {
+                half_width,
+                half_height,
+            },
+        ) => collision_rect_capsule(b.pos, half_width, half_height, a.pos, rad, half_len, a.ang),
         (
             Shape::Capsule {
                 rad: rad_a,
@@ -328,14 +363,20 @@ pub struct CollisionInfo {
     depth: f32,         //distance the bodies has entered each other in the n vector direction
     impact_point: Vec2, //point where the two bodies collided
 }
-fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32, height: f32) -> Option<CollisionInfo> {
+fn collision_circle_rect(
+    circle_pos: Vec2,
+    rad: f32,
+    rect_pos: Vec2,
+    h_width: f32,
+    h_height: f32,
+) -> Option<CollisionInfo> {
     // clamping the nearest point of the rect to the circle
-    let rect_left = rect_pos.x - width * 0.5;
-    let rect_top = rect_pos.y - height * 0.5;
+    let rect_left = rect_pos.x - h_width;
+    let rect_top = rect_pos.y - h_height;
 
-    //we look for the closes coord in the rect to the circle
-    let closest_x = circle_pos.x.clamp(rect_left, rect_left + width);
-    let closest_y = circle_pos.y.clamp(rect_top, rect_top + height);
+    //we look for the closesest coord in the rect to the circle
+    let closest_x = circle_pos.x.clamp(rect_left, rect_left + h_width * 2.0);
+    let closest_y = circle_pos.y.clamp(rect_top, rect_top + h_height * 2.0);
 
     let dx = circle_pos.x - closest_x;
     let dy = circle_pos.y - closest_y;
@@ -359,7 +400,7 @@ fn collision_circle_rect(circle_pos: Vec2, rad: f32, rect_pos: Vec2, width: f32,
     Some(CollisionInfo {
         n,
         depth: (rad - dist),
-        impact_point: n * rad + circle_pos,
+        impact_point: circle_pos - n * rad,
     })
 }
 fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option<CollisionInfo> {
@@ -380,19 +421,26 @@ fn collision_circle_circle(a_pos: Vec2, ra: f32, b_pos: Vec2, rb: f32) -> Option
     })
 }
 //only supporting AABB
-pub fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f32, h_b: f32) -> Option<CollisionInfo> {
-    let x_a = a_pos.x - w_a * 0.5;
-    let y_a = a_pos.y - h_a * 0.5;
-    let x_b = b_pos.x - w_b * 0.5;
-    let y_b = b_pos.y - h_b * 0.5;
+pub fn collision_rect_rect(
+    a_pos: Vec2,
+    hw_a: f32,
+    hh_a: f32,
+    b_pos: Vec2,
+    hw_b: f32,
+    hh_b: f32,
+) -> Option<CollisionInfo> {
+    let x_a = a_pos.x - hw_a;
+    let y_a = a_pos.y - hh_a;
+    let x_b = b_pos.x - hw_b;
+    let y_b = b_pos.y - hh_b;
     //AABB
-    if !(x_a < x_b + w_b && x_a + w_a > x_b && y_a < y_b + h_b && y_a + h_a > y_b) {
+    if !(x_a < x_b + hw_b * 2.0 && x_a + hw_a * 2.0 > x_b && y_a < y_b + hh_b * 2.0 && y_a + hh_a * 2.0 > y_b) {
         return None;
     }
     //to find the depth we have to determine which faces are facing eachother
     // this is the distance that have between the two centers
-    let marginal_dist_x = (w_a + w_b) * 0.5;
-    let marginal_dist_y = (h_a + h_b) * 0.5;
+    let marginal_dist_x = hw_a + hw_b;
+    let marginal_dist_y = hh_a + hh_b;
 
     let dx = a_pos.x - b_pos.x;
     let dy = a_pos.y - b_pos.y;
@@ -404,9 +452,9 @@ pub fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f3
     if depth_x < depth_y {
         //side collision
         let info = if dx > 0.0 {
-            (1.0, v2!(a_pos.x + depth_x, a_pos.y))
+            (1.0, v2!(a_pos.x - hw_a, a_pos.y))
         } else {
-            (-1.0, v2!(a_pos.x - depth_x, a_pos.y))
+            (-1.0, v2!(a_pos.x + hw_a, a_pos.y))
         }; //if dx is neg they collide in the left side
 
         Some(CollisionInfo {
@@ -429,19 +477,16 @@ pub fn collision_rect_rect(a_pos: Vec2, w_a: f32, h_a: f32, b_pos: Vec2, w_b: f3
         })
     }
 }
-fn collision_rect_line(rect_pos: Vec2, w: f32, h: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
-    let rx = w / 2.0;
-    let ry = h / 2.0;
-
+fn collision_rect_line(rect_pos: Vec2, hw: f32, hh: f32, p1_pos: Vec2, p2_pos: Vec2) -> Option<CollisionInfo> {
     let line_min_x = p1_pos.x.min(p2_pos.x);
     let line_max_x = p1_pos.x.max(p2_pos.x);
     let line_min_y = p1_pos.y.min(p2_pos.y);
     let line_max_y = p1_pos.y.max(p2_pos.y);
 
-    if rect_pos.x + rx <= line_min_x || rect_pos.x - rx >= line_max_x {
+    if rect_pos.x + hw <= line_min_x || rect_pos.x - hw >= line_max_x {
         return None;
     }
-    if rect_pos.y + ry <= line_min_y || rect_pos.y - ry >= line_max_y {
+    if rect_pos.y + hh <= line_min_y || rect_pos.y - hh >= line_max_y {
         return None;
     }
 
@@ -463,7 +508,7 @@ fn collision_rect_line(rect_pos: Vec2, w: f32, h: f32, p1_pos: Vec2, p2_pos: Vec
     };
 
     let proj_dir = vector_to_rect.dot(dir);
-    let r_proj_dir = rx * dir.x.abs() + ry * dir.y.abs();
+    let r_proj_dir = hw * dir.x.abs() + hh * dir.y.abs();
 
     if proj_dir + r_proj_dir <= 0.0 || proj_dir - r_proj_dir >= len {
         return None;
@@ -479,21 +524,21 @@ fn collision_rect_line(rect_pos: Vec2, w: f32, h: f32, p1_pos: Vec2, p2_pos: Vec
         dist_to_line = -dist_to_line;
     }
 
-    let r_proj_normal = rx * normal.x.abs() + ry * normal.y.abs();
+    let r_proj_normal = hw * normal.x.abs() + hh * normal.y.abs();
     let depth = r_proj_normal - dist_to_line;
     if depth <= 0.0 {
         return None;
     }
     let contact_x = if normal.x > 0.0 {
-        rect_pos.x - rx
+        rect_pos.x - hw
     } else {
-        rect_pos.x + rx
+        rect_pos.x + hw
     };
 
     let contact_y = if normal.y > 0.0 {
-        rect_pos.y - ry
+        rect_pos.y - hh
     } else {
-        rect_pos.y + ry
+        rect_pos.y + hh
     };
 
     // 2. Ese vértice es tu punto de impacto en coordenadas del mundo
@@ -531,7 +576,7 @@ fn collision_circle_line(circle_pos: Vec2, rad: f32, p1_pos: Vec2, p2_pos: Vec2)
     Some(CollisionInfo {
         n,
         depth: rad - dist_vec.len(),
-        impact_point: n * rad + circle_pos,
+        impact_point: circle_pos - n * rad,
     })
 }
 fn collision_circle_capsule(
@@ -561,21 +606,19 @@ fn collision_circle_capsule(
     Some(CollisionInfo {
         n,
         depth: (circ_rad + cap_rad) - distance,
-        impact_point: n * circ_rad + circle_pos,
+        impact_point: circle_pos - n * circ_rad,
     })
 }
 // this resolves in a two steps method where we aproximate where the virtual circle of the capsule is going to collide with the rectangle
 fn collision_rect_capsule(
     rect_pos: Vec2,
-    w: f32,
-    h: f32,
+    half_w: f32,
+    half_h: f32,
     cap_pos: Vec2,
     rad: f32,
     cap_hl: f32,
     cap_ang: f32,
 ) -> Option<CollisionInfo> {
-    let half_w = w * 0.5;
-    let half_h = h * 0.5;
     let rect_min = rect_pos - v2!(half_w, half_h);
     let rect_max = rect_pos + v2!(half_w, half_h);
 
@@ -599,14 +642,13 @@ fn collision_rect_capsule(
     // we project agin
     let proj_2 = (closest_2 - cap_pos).dot(capsule_line).clamp(-cap_hl, cap_hl);
     let final_circle_pos = proj_2 * capsule_line + cap_pos;
-    collision_circle_rect(final_circle_pos, rad, rect_pos, w, h)
+    collision_circle_rect(final_circle_pos, rad, rect_pos, half_w, half_h)
 }
 fn collision_line_capsule(
     line_p1: Vec2,
     line_p2: Vec2,
     cap_pos: Vec2,
     cap_hl: f32,
-
     rad: f32,
     cap_ang: f32,
 ) -> Option<CollisionInfo> {

@@ -12,7 +12,7 @@ impl Body {
         assert!(p1 - p2 != Vec2::ZERO, "Cant make a line with legth zero");
 
         let vec = p2 - p1;
-        let ang = -vec.y.atan2(vec.x);
+        let ang = vec.ang();
         Body {
             pos: p1,
             vel: Vec2::ZERO,
@@ -27,6 +27,7 @@ impl Body {
             restitution_coef: 0.0,
             friction_coef: 0.0,
             layer_bits: Layer::L0,
+            user_data: 0,
             mask_bits: Layer::L0,
         }
     }

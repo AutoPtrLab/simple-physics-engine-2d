@@ -196,6 +196,11 @@ impl Vec2 {
     pub fn cross(self, rhs: Self) -> f32 {
         self.x * rhs.y - self.y * rhs.x
     }
+    ///returns the angle of the vector
+    pub fn ang(self) -> f32 {
+        //the angles are inversed
+        self.y.atan2(self.x)
+    }
 }
 
 // ------------------------------------------
