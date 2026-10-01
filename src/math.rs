@@ -167,6 +167,10 @@ impl Vec2 {
 
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
     pub const UNIT: Self = Self { x: 1.0, y: 1.0 };
+    ///construcot
+    pub fn new(x: f32, y: f32) -> Self {
+        Vec2 { x, y }
+    }
 
     ///returns the length of the vector Squared
     pub fn len_sq(&self) -> f32 {

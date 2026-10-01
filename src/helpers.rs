@@ -70,7 +70,12 @@ pub fn get_rect_points<const N: usize>(pos: Vec2, half_w: f32, half_h: f32) -> [
 }
 
 pub fn get_line_points<const N: usize>(p1: Vec2, p2: Vec2) -> [Vec2; N] {
-    const { assert!(N >= 2, "THE MINIMUM POINTS TO DESCRIBE A LINE is 2") }
+    const {
+        assert!(
+            N >= 4,
+            "THE MINIMUM POINTS TO DESCRIBE A LINE is 4 (if you want the points , the line body already has it"
+        )
+    }
     let len = (p1 - p2).len();
     let resolution = len / (N - 1) as f32;
     let n = (p2 - p1).normalize();
@@ -118,4 +123,89 @@ pub fn get_capsule_points<const N: usize>(pos: Vec2, half_len: f32, rad: f32, an
     }
 
     points
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic;
+
+    use super::*;
+    use crate::v2;
+
+    #[test]
+    fn test_get_circle_points() {
+        let points = get_circle_points::<4>(v2!(0.0, 0.0), 10.0);
+        assert_eq!(points.len(), 4);
+        assert!(points[0].x > 9.9 && points[0].y.abs() < 0.1);
+    }
+
+    #[test]
+    fn test_get_rect_points() {
+        let points = get_rect_points::<4>(v2!(0.0, 0.0), 5.0, 10.0);
+        assert_eq!(points.len(), 4);
+        assert_eq!(points[0], v2!(-5.0, -10.0));
+        assert_eq!(points[1], v2!(5.0, -10.0));
+        assert_eq!(points[2], v2!(-5.0, 10.0));
+        assert_eq!(points[3], v2!(-5.0, -10.0));
+    }
+
+    #[test]
+    fn test_get_rect_points_asymmetric() {
+        let points = get_rect_points::<6>(v2!(0.0, 0.0), 5.0, 5.0);
+        assert_eq!(points.len(), 6);
+    }
+
+    #[test]
+    fn test_get_capsule_points() {
+        let points = get_capsule_points::<8>(v2!(0.0, 0.0), 10.0, 5.0, 0.0);
+        assert_eq!(points.len(), 8);
+    }
+
+    #[test]
+    fn test_get_shape_points_circle() {
+        let shape = Shape::Circle { rad: 5.0 };
+        let points = get_shape_points::<4>(v2!(0.0, 0.0), shape, None);
+        assert_eq!(points.len(), 4);
+    }
+
+    #[test]
+    fn test_get_shape_points_rect() {
+        let shape = Shape::Rectangle {
+            half_width: 5.0,
+            half_height: 5.0,
+        };
+        let points = get_shape_points::<4>(v2!(0.0, 0.0), shape, None);
+        assert_eq!(points.len(), 4);
+    }
+    #[test]
+    fn test_get_line_points() {
+        // Usamos 12.0 en lugar de 10.0 para que al dividir en 3 segmentos dé un número exacto (4.0)
+        let points = get_line_points::<4>(v2!(0.0, 0.0), v2!(12.0, 0.0));
+
+        assert_eq!(points.len(), 4);
+        assert_eq!(points[0], v2!(0.0, 0.0));
+        assert_eq!(points[1], v2!(4.0, 0.0));
+        assert_eq!(points[2], v2!(8.0, 0.0));
+        assert_eq!(points[3], v2!(12.0, 0.0));
+    }
+
+    #[test]
+    fn test_get_shape_points_capsule() {
+        let shape = Shape::Capsule {
+            rad: 5.0,
+            half_len: 10.0,
+        };
+        let points = get_shape_points::<4>(v2!(0.0, 0.0), shape, Some(0.0));
+        assert_eq!(points.len(), 4);
+    }
+
+    #[test]
+    #[should_panic(expected = "The capsule needs to know the angle")]
+    fn test_get_shape_points_capsule_panics_without_angle() {
+        let shape = Shape::Capsule {
+            rad: 5.0,
+            half_len: 10.0,
+        };
+        get_shape_points::<4>(v2!(0.0, 0.0), shape, None);
+    }
 }

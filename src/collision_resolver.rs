@@ -750,3 +750,142 @@ fn collision_capsule_capsule(
 
     collision_circle_circle(circ_a, rad_a, circ_b, rad_b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! assert_approx_eq {
+        ($a:expr, $b:expr) => {
+            assert!(
+                ($a - $b).abs() < 1e-4,
+                "Assertion Failed: {} is not aprox equal to  {} (real diff: {})",
+                $a,
+                $b,
+                ($a - $b).abs()
+            );
+        };
+    }
+
+    #[test]
+    fn test_collision_circle_circle() {
+        let pos_a = v2![0.0, 0.0];
+        let pos_b = v2![3.0, 0.0];
+
+        let col = collision_circle_circle(pos_a, 2.0, pos_b, 2.0).unwrap();
+        assert_approx_eq!(col.depth, 1.0);
+        assert_approx_eq!(col.n.x, -1.0);
+        assert_approx_eq!(col.n.y, 0.0);
+
+        let pos_far = v2![10.0, 0.0];
+        assert!(collision_circle_circle(pos_a, 2.0, pos_far, 2.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_circle_rect() {
+        let circle_pos = v2![0.0, 3.5];
+        let rect_pos = v2![0.0, 0.0];
+
+        let col = collision_circle_rect(circle_pos, 1.0, rect_pos, 2.0, 3.0).unwrap();
+        assert_approx_eq!(col.depth, 0.5);
+        assert_approx_eq!(col.n.x, 0.0);
+        assert_approx_eq!(col.n.y, 1.0);
+
+        let far_circle = v2![0.0, 10.0];
+        assert!(collision_circle_rect(far_circle, 1.0, rect_pos, 2.0, 3.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_rect_rect() {
+        let r1_pos = v2![0.0, 0.0];
+        let r2_pos = v2![3.0, 0.0];
+
+        let col = collision_rect_rect(r1_pos, 2.0, 2.0, r2_pos, 2.0, 2.0).unwrap();
+        assert_approx_eq!(col.depth, 1.0);
+        assert_approx_eq!(col.n.x, -1.0);
+        assert_approx_eq!(col.n.y, 0.0);
+
+        let r3_pos = v2![10.0, 0.0];
+        assert!(collision_rect_rect(r1_pos, 2.0, 2.0, r3_pos, 2.0, 2.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_rect_line() {
+        let rect_pos = v2![0.0, 0.0];
+        let p1 = v2![-5.0, 1.0];
+        let p2 = v2![5.0, 1.0];
+
+        let col = collision_rect_line(rect_pos, 2.0, 2.0, p1, p2);
+        assert!(col.is_some());
+
+        let p1_far = v2![-5.0, 10.0];
+        let p2_far = v2![5.0, 10.0];
+        assert!(collision_rect_line(rect_pos, 2.0, 2.0, p1_far, p2_far).is_none());
+    }
+
+    #[test]
+    fn test_collision_circle_line() {
+        let circle_pos = v2![0.0, 1.5];
+        let p1 = v2![-5.0, 0.0];
+        let p2 = v2![5.0, 0.0];
+
+        let col = collision_circle_line(circle_pos, 2.0, p1, p2).unwrap();
+        assert_approx_eq!(col.depth, 0.5);
+        assert_approx_eq!(col.n.x, 0.0);
+        assert_approx_eq!(col.n.y, 1.0);
+
+        let far_circle = v2![0.0, 5.0];
+        assert!(collision_circle_line(far_circle, 1.0, p1, p2).is_none());
+    }
+
+    #[test]
+    fn test_collision_circle_capsule() {
+        let circle_pos = v2![2.0, 1.5];
+        let cap_pos = v2![0.0, 0.0];
+
+        let col = collision_circle_capsule(circle_pos, 1.0, cap_pos, 1.0, 3.0, 0.0).unwrap();
+        assert_approx_eq!(col.depth, 0.5);
+        assert_approx_eq!(col.n.x, 0.0);
+        assert_approx_eq!(col.n.y, 1.0);
+
+        let far_circle = v2![0.0, 10.0];
+        assert!(collision_circle_capsule(far_circle, 1.0, cap_pos, 1.0, 3.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_rect_capsule() {
+        let rect_pos = v2![0.0, 0.0];
+        let cap_pos = v2![0.0, 3.5];
+
+        let col = collision_rect_capsule(rect_pos, 2.0, 2.0, cap_pos, 1.0, 2.0, 90.0);
+        assert!(col.is_some());
+
+        let far_cap = v2![0.0, 10.0];
+        assert!(collision_rect_capsule(rect_pos, 2.0, 2.0, far_cap, 1.0, 2.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_line_capsule() {
+        let p1 = v2![-5.0, 0.0];
+        let p2 = v2![5.0, 0.0];
+        let cap_pos = v2![0.0, 1.5];
+
+        let col = collision_line_capsule(p1, p2, cap_pos, 2.0, 1.0, 90.0);
+        assert!(col.is_some());
+
+        let far_cap = v2![0.0, 10.0];
+        assert!(collision_line_capsule(p1, p2, far_cap, 2.0, 1.0, 90.0).is_none());
+    }
+
+    #[test]
+    fn test_collision_capsule_capsule() {
+        let cap_a_pos = v2![0.0, 0.0];
+        let cap_b_pos = v2![0.0, 1.5];
+
+        let col = collision_capsule_capsule(cap_a_pos, 1.0, 2.0, 0.0, cap_b_pos, 1.0, 2.0, 0.0).unwrap();
+        assert_approx_eq!(col.depth, 0.5);
+
+        let far_cap_pos = v2![0.0, 10.0];
+        assert!(collision_capsule_capsule(cap_a_pos, 1.0, 2.0, 0.0, far_cap_pos, 1.0, 2.0, 0.0,).is_none());
+    }
+}

@@ -102,3 +102,71 @@ pub fn capsule_contains_point(cap_pos: Vec2, half_len: f32, rad: f32, ang: f32, 
 
     circ_contains_point(nearest_line_point, rad, point)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::math::Vec2;
+    use crate::v2;
+
+    #[test]
+    fn test_circ_contains_circ() {
+        assert!(circ_contains_circ(v2!(0.0, 0.0), 10.0, v2!(2.0, 2.0), 3.0));
+        assert!(!circ_contains_circ(v2!(0.0, 0.0), 5.0, v2!(2.0, 2.0), 10.0));
+        assert!(!circ_contains_circ(v2!(0.0, 0.0), 5.0, v2!(20.0, 20.0), 2.0));
+    }
+
+    #[test]
+    fn test_circ_contains_rect() {
+        assert!(circ_contains_rect(v2!(0.0, 0.0), 10.0, v2!(0.0, 0.0), 4.0, 4.0));
+        assert!(!circ_contains_rect(v2!(0.0, 0.0), 5.0, v2!(0.0, 0.0), 20.0, 20.0));
+        assert!(!circ_contains_rect(v2!(0.0, 0.0), 10.0, v2!(15.0, 15.0), 2.0, 2.0));
+    }
+
+    #[test]
+    fn test_circ_contains_point() {
+        assert!(circ_contains_point(v2!(0.0, 0.0), 5.0, v2!(2.0, 2.0)));
+        assert!(!circ_contains_point(v2!(0.0, 0.0), 5.0, v2!(10.0, 10.0)));
+    }
+
+    #[test]
+    fn test_rect_contains_rect() {
+        assert!(rect_contains_rect(v2!(0.0, 0.0), 20.0, 20.0, v2!(0.0, 0.0), 10.0, 10.0));
+        assert!(!rect_contains_rect(
+            v2!(0.0, 0.0),
+            10.0,
+            10.0,
+            v2!(0.0, 0.0),
+            20.0,
+            20.0
+        ));
+        assert!(!rect_contains_rect(
+            v2!(0.0, 0.0),
+            20.0,
+            20.0,
+            v2!(30.0, 30.0),
+            5.0,
+            5.0
+        ));
+    }
+
+    #[test]
+    fn test_rect_contains_point() {
+        assert!(rect_contains_point(v2!(0.0, 0.0), 10.0, 10.0, v2!(3.0, 3.0)));
+        assert!(!rect_contains_point(v2!(0.0, 0.0), 10.0, 10.0, v2!(15.0, 15.0)));
+    }
+
+    #[test]
+    fn test_rect_contains_circle() {
+        assert!(rect_contains_circle(v2!(0.0, 0.0), 20.0, 20.0, v2!(0.0, 0.0), 5.0));
+        assert!(!rect_contains_circle(v2!(0.0, 0.0), 10.0, 10.0, v2!(0.0, 0.0), 20.0));
+        assert!(!rect_contains_circle(v2!(0.0, 0.0), 20.0, 20.0, v2!(30.0, 30.0), 2.0));
+    }
+
+    #[test]
+    fn test_capsule_contains_point() {
+        assert!(capsule_contains_point(v2!(0.0, 0.0), 10.0, 5.0, 0.0, v2!(5.0, 2.0)));
+        assert!(!capsule_contains_point(v2!(0.0, 0.0), 10.0, 5.0, 0.0, v2!(15.0, 2.0)));
+        assert!(!capsule_contains_point(v2!(0.0, 0.0), 10.0, 5.0, 0.0, v2!(5.0, 10.0)));
+    }
+}
