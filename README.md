@@ -9,7 +9,7 @@ The repository is a Cargo workspace with two crates:
 | `physics_engine/simple_physics_engine_2d` | The engine itself. No runtime dependencies. |
 | `demo/monster_janitor` | Freefall Tower Defense, a game built on top of the engine with macroquad. |
 
-![Demo](demo.gif)_
+![Demo](demo.gif)
 
 ## Engine features
 
