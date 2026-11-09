@@ -1,0 +1,1 @@
+std::iter::Map<std::slice::Iter<'_, enemy::Enemy>, {closure@src/systems/collision_system.rs:19:53: 19:56}>
