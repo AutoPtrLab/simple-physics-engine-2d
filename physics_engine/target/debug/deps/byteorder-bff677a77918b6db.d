@@ -1,6 +1,0 @@
-/home/autoptr/Proyects/simple_physics_engine_2d/target/debug/deps/byteorder-bff677a77918b6db.d: /home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs /home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs
-
-/home/autoptr/Proyects/simple_physics_engine_2d/target/debug/deps/libbyteorder-bff677a77918b6db.rmeta: /home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs /home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs
-
-/home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs:
-/home/autoptr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs:
