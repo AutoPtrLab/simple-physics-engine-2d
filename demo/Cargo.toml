@@ -1,0 +1,9 @@
+[package]
+name = "monster_janitor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+macroquad = "0.4"
+simple_physics_engine_2d = {path = "../physics_engine"}
+slotmap = "1.0"
