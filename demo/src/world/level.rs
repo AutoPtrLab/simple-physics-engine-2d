@@ -144,7 +144,7 @@ impl Default for Level {
                 .with_mask_bits(CADAVER_LAYER),
             TerrainKind::Plains,
         );
-        //l.new_hero(v2!(700.0, 200.0));
+        l.new_hero(v2!(700.0, 200.0));
         l
     }
 }
