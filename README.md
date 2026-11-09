@@ -164,6 +164,4 @@ cargo test -p simple_physics_engine_2d
 ```
 
 ## License
-## License
-
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
