@@ -39,7 +39,7 @@ impl Body {
             ang: 0.0,
             ang_vel: 0.0,
             inv_mass: 1.0 / mass,
-            inv_inert: 0.5 * mass * rad * rad, //I= 1/2 * M *r²
+            inv_inert: 1.0 / (0.5 * mass * rad * rad), //I= 1/2 * M *r²
             shape: Shape::Circle { rad },
             is_hitbox: false,
             body_type: Dynamic { gravity_scale: 1.0 },
