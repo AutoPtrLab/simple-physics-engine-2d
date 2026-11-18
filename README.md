@@ -11,6 +11,8 @@ The repository is a Cargo workspace with two crates:
 
 ![Demo](demo.gif)
 
+▶️ **[Play the demo in your browser](https://autoptrlab.github.io/simple-physics-engine-2d/)**
+
 ## Engine features
 
 - **Shapes:** circle, rectangle, capsule and line segment.
